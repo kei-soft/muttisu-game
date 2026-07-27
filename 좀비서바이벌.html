@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>좀비 웨이브 서바이벌</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#0b0d10; font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; }
+  #game { display:block; width:100%; height:100%; cursor:crosshair; }
+
+  .overlay {
+    position:fixed; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:24px;
+    background:rgba(5,6,8,0.82); backdrop-filter:blur(4px);
+    z-index:10; overflow-y:auto; padding:24px 12px;
+  }
+  /* 콘텐츠가 화면보다 클 때 위쪽이 잘리지 않도록 */
+  .overlay > :first-child { margin-top:auto; }
+  .overlay > :last-child { margin-bottom:auto; }
+  .hidden { display:none !important; }
+
+  .title { font-size:52px; font-weight:900; color:#e8e3d8; letter-spacing:2px; text-shadow:0 0 24px rgba(180,30,30,.6); }
+  .title span { color:#c8342b; }
+  .subtitle { color:#8a8578; font-size:15px; line-height:1.8; text-align:center; }
+
+  .big-btn {
+    padding:14px 48px; font-size:20px; font-weight:700; color:#e8e3d8;
+    background:#c8342b; border:none; border-radius:6px; cursor:pointer;
+    font-family:inherit; letter-spacing:1px; transition:transform .1s, background .15s;
+  }
+  .big-btn:hover { background:#e04338; transform:translateY(-2px); }
+
+  .round-banner {
+    position:fixed; top:18%; left:50%; transform:translateX(-50%);
+    font-size:44px; font-weight:900; color:#c8342b; letter-spacing:4px;
+    text-shadow:0 0 30px rgba(200,52,43,.5); z-index:5;
+    pointer-events:none; opacity:0; transition:opacity .3s;
+  }
+
+  /* 업그레이드 카드 */
+  .upgrade-title { font-size:30px; font-weight:900; color:#e8e3d8; letter-spacing:2px; }
+  .upgrade-sub { color:#8a8578; font-size:14px; margin-top:-14px; }
+  .cards { display:flex; gap:20px; flex-wrap:wrap; justify-content:center; padding:0 16px; }
+  .card {
+    width:200px; min-height:240px; padding:22px 18px;
+    background:linear-gradient(160deg,#191d23,#101318);
+    border:1px solid #2a2f38; border-radius:10px;
+    display:flex; flex-direction:column; align-items:center; gap:12px;
+    cursor:pointer; transition:transform .15s, border-color .15s, box-shadow .15s;
+    text-align:center;
+  }
+  .card:hover { transform:translateY(-8px); border-color:#c8342b; box-shadow:0 12px 32px rgba(200,52,43,.25); }
+  .card.weapon { border-color:#7a5c1e; }
+  .card.weapon:hover { border-color:#e0a92e; box-shadow:0 12px 32px rgba(224,169,46,.25); }
+  .card .icon { font-size:44px; }
+  .card .body { display:flex; flex-direction:column; align-items:center; gap:12px; }
+  .card .name { font-size:17px; font-weight:800; color:#e8e3d8; }
+  .card .tag { font-size:11px; font-weight:700; letter-spacing:1px; padding:3px 10px; border-radius:20px; background:#26313f; color:#7fa8d4; }
+  .card.weapon .tag { background:#3a3117; color:#e0a92e; }
+  .card .desc { font-size:13px; color:#9a958a; line-height:1.6; }
+
+  /* 모바일: 카드를 가로형으로 눕혀 세로 공간 절약 */
+  @media (max-width: 700px), (max-height: 600px) {
+    .overlay { gap:14px; }
+    .title { font-size:34px; }
+    .upgrade-title { font-size:22px; }
+    .cards { flex-direction:column; width:100%; max-width:440px; gap:12px; }
+    .card {
+      width:100%; min-height:0; flex-direction:row; text-align:left;
+      padding:12px 14px; gap:14px; align-items:center;
+    }
+    .card:hover { transform:none; }
+    .card:active { border-color:#c8342b; }
+    .card .icon { font-size:32px; flex-shrink:0; }
+    .card .body { display:flex; flex-direction:column; gap:4px; }
+    .card .tag { align-self:flex-start; }
+    .card .name { font-size:15px; }
+    .card .desc { font-size:12px; line-height:1.5; }
+  }
+
+  /* HUD */
+  #hud {
+    position:fixed; top:0; left:0; right:0; padding:14px 20px;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    pointer-events:none; z-index:4; color:#e8e3d8;
+  }
+  .hud-left, .hud-right { display:flex; flex-direction:column; gap:8px; }
+  .hud-right { align-items:flex-end; }
+  .hp-wrap { width:220px; height:18px; background:#1a1e24; border:1px solid #333a44; border-radius:4px; overflow:hidden; }
+  #hpbar { height:100%; width:100%; background:linear-gradient(90deg,#8c1f1a,#d84438); transition:width .15s; }
+  .hud-label { font-size:12px; color:#8a8578; letter-spacing:1px; }
+  #roundText { font-size:22px; font-weight:900; letter-spacing:2px; }
+  #zombieCount { font-size:14px; color:#b0a99a; }
+  #weaponText { font-size:15px; font-weight:700; color:#e0a92e; }
+  #statsText { font-size:12px; color:#7d8794; line-height:1.7; text-align:right; white-space:pre-line; }
+  #scoreText { font-size:14px; color:#b0a99a; }
+  #muteBtn {
+    pointer-events:auto; width:40px; height:40px; font-size:18px;
+    background:#1a1e24; border:1px solid #333a44; border-radius:8px;
+    cursor:pointer; color:#e8e3d8;
+  }
+
+  /* 치트 코드 입력창 */
+  #cheatInput {
+    position:fixed; top:6px; left:50%; transform:translateX(-50%);
+    width:120px; padding:4px 10px; font-size:12px; text-align:center;
+    background:rgba(20,24,30,0.7); border:1px solid #333a44; border-radius:14px;
+    color:#8a8578; outline:none; z-index:6; font-family:inherit;
+  }
+  #cheatInput:focus { border-color:#c8342b; color:#e8e3d8; }
+  #cheatGo {
+    position:fixed; top:6px; left:calc(50% + 72px);
+    width:28px; height:26px; font-size:11px;
+    background:rgba(20,24,30,0.7); border:1px solid #333a44; border-radius:13px;
+    color:#8a8578; cursor:pointer; z-index:6;
+  }
+  #cheatGo:active { border-color:#c8342b; color:#e8e3d8; }
+  #cheatInput.shake { animation:shake .3s; border-color:#c8342b; }
+  @keyframes shake {
+    0%,100%{ transform:translateX(-50%); }
+    25%{ transform:translateX(calc(-50% - 6px)); }
+    75%{ transform:translateX(calc(-50% + 6px)); }
+  }
+
+  .gameover-score { font-size:20px; color:#b0a99a; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<input id="cheatInput" type="text" placeholder="코드" autocomplete="off" class="hidden">
+<button id="cheatGo" class="hidden">▶</button>
+
+<div id="hud" class="hidden">
+  <div class="hud-left">
+    <div>
+      <div class="hud-label">체력</div>
+      <div class="hp-wrap"><div id="hpbar"></div></div>
+    </div>
+    <div id="weaponText">🔫 권총</div>
+    <div id="scoreText">처치: 0</div>
+    <button id="muteBtn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div class="hud-right">
+    <div id="roundText">라운드 1</div>
+    <div id="zombieCount">남은 좀비: 0</div>
+    <div id="statsText"></div>
+  </div>
+</div>
+
+<div id="roundBanner" class="round-banner"></div>
+
+<!-- 시작 화면 -->
+<div id="startScreen" class="overlay">
+  <div class="title">좀비 웨이브 <span>서바이벌</span></div>
+  <div class="subtitle">
+    라운드마다 몰려오는 좀비 떼를 막아내세요.<br>
+    라운드가 끝나면 3가지 업그레이드 중 하나를 선택합니다.<br>
+    <b style="color:#e0a92e">목표: 40 라운드의 최종 보스를 처치하면 승리!</b><br><br>
+    <b style="color:#e8e3d8">PC:</b> WASD/방향키 이동 · 마우스 조준 · 클릭(꾹) 발사<br>
+    <b style="color:#e8e3d8">모바일:</b> 왼쪽 하단 조이스틱 = 이동 · 나머지 화면 터치 = 조준+발사
+  </div>
+  <button class="big-btn" onclick="startGame()">게임 시작</button>
+</div>
+
+<!-- 업그레이드 선택 -->
+<div id="upgradeScreen" class="overlay hidden">
+  <div class="upgrade-title">라운드 클리어!</div>
+  <div class="upgrade-sub">업그레이드를 하나 선택하세요</div>
+  <div class="cards" id="cardBox"></div>
+</div>
+
+<!-- 게임 오버 -->
+<div id="gameoverScreen" class="overlay hidden">
+  <div class="title" style="color:#c8342b">사망...</div>
+  <div class="gameover-score" id="finalScore"></div>
+  <button class="big-btn" onclick="startGame()">다시 도전</button>
+</div>
+
+<!-- 승리 -->
+<div id="victoryScreen" class="overlay hidden">
+  <div class="title" style="color:#e0a92e; text-shadow:0 0 24px rgba(224,169,46,.6)">🏆 승리!</div>
+  <div class="subtitle">최종 보스를 물리치고 좀비 사태에서 살아남았습니다!</div>
+  <div class="gameover-score" id="victoryScore"></div>
+  <button class="big-btn" style="background:#b8862a" onclick="startGame()">다시 플레이</button>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize(){ W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+addEventListener('resize', resize); resize();
+const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+// ─── 사운드 (Web Audio 합성) ───
+let audioCtx = null, muted = false;
+function initAudio(){
+  if (!audioCtx){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) audioCtx = new AC();
+  }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+function tone(freq, dur, type='square', vol=0.12, slideTo=null){
+  if (!audioCtx || muted) return;
+  const t = audioCtx.currentTime;
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (slideTo !== null) o.frequency.exponentialRampToValueAtTime(Math.max(slideTo,1), t+dur);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(t); o.stop(t+dur);
+}
+function noiseBurst(dur, vol=0.15, lowpass=1800){
+  if (!audioCtx || muted) return;
+  const t = audioCtx.currentTime;
+  const len = Math.max(1, Math.floor(audioCtx.sampleRate * dur));
+  const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i=0;i<len;i++) d[i] = (Math.random()*2-1) * (1 - i/len);
+  const src = audioCtx.createBufferSource(); src.buffer = buf;
+  const f = audioCtx.createBiquadFilter(); f.type='lowpass'; f.frequency.value = lowpass;
+  const g = audioCtx.createGain(); g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+  src.connect(f); f.connect(g); g.connect(audioCtx.destination);
+  src.start(t);
+}
+const SFX = {
+  pistol(){ tone(520, 0.08, 'square', 0.10, 160); noiseBurst(0.05, 0.08, 2500); },
+  smg(){ tone(600, 0.05, 'square', 0.07, 220); },
+  shotgun(){ noiseBurst(0.22, 0.22, 1200); tone(140, 0.15, 'sawtooth', 0.12, 60); },
+  rifle(){ tone(700, 0.07, 'square', 0.10, 200); noiseBurst(0.06, 0.10, 3000); },
+  laser(){ tone(1100, 0.12, 'sine', 0.09, 280); },
+  sniper(){ noiseBurst(0.3, 0.25, 2000); tone(900, 0.25, 'square', 0.14, 90); },
+  zombieDie(){ tone(160, 0.18, 'sawtooth', 0.12, 50); noiseBurst(0.12, 0.10, 900); },
+  hurt(){ tone(110, 0.22, 'sawtooth', 0.16, 60); },
+  upgrade(){ tone(523, 0.10, 'sine', 0.12); setTimeout(()=>tone(784, 0.16, 'sine', 0.12), 100); },
+  roundStart(){ tone(196, 0.12, 'triangle', 0.12); setTimeout(()=>tone(262, 0.18, 'triangle', 0.12), 130); },
+  gameOver(){ tone(330, 0.25, 'sawtooth', 0.12, 250); setTimeout(()=>tone(250, 0.3, 'sawtooth', 0.12, 160), 250); setTimeout(()=>tone(170, 0.6, 'sawtooth', 0.14, 60), 550); },
+  victory(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f, 0.28, 'sine', 0.14), i*160)); setTimeout(()=>tone(1319, 0.6, 'sine', 0.15), 700); },
+};
+
+// ─── 무기 정의 ───
+const WEAPONS = {
+  pistol:  { name:'권총',     icon:'🔫', dmg:15, fireRate:300, bulletSpeed:10, pellets:1, spread:0.03, bulletSize:4, color:'#ffd27a' },
+  smg:     { name:'기관단총', icon:'💥', dmg:7,  fireRate:110, bulletSpeed:11, pellets:1, spread:0.12, bulletSize:3, color:'#7ad4ff' },
+  shotgun: { name:'샷건',     icon:'🧨', dmg:9,  fireRate:750, bulletSpeed:10, pellets:6, spread:0.35, bulletSize:4, color:'#ff9d5c' },
+  rifle:   { name:'돌격소총', icon:'🎯', dmg:16, fireRate:180, bulletSpeed:14, pellets:1, spread:0.05, bulletSize:4, color:'#a0ff8a' },
+  laser:   { name:'레이저건', icon:'⚡', dmg:15, fireRate:300, bulletSpeed:18, pellets:1, spread:0.01, bulletSize:5, color:'#e07aff', pierce:1, auto:true, range:400, note:'사거리 안(점선 원)의 가장 가까운 좀비를 자동으로 조준·발사합니다. 사거리 밖은 수동 발사.' },
+  sniper:  { name:'저격소총', icon:'🔭', dmg:200, fireRate:1100, bulletSpeed:26, pellets:1, spread:0.003, bulletSize:5, color:'#9ff3ff', pierce:4 },
+};
+
+// ─── 업그레이드 풀 ───
+const UPGRADE_POOL = [
+  { id:'atkspd', icon:'⏱️', name:'공격속도 증가', tag:'스탯', desc:'공격 속도가 15% 빨라집니다.', apply:()=>{ P.fireMult *= 0.85; } },
+  { id:'dmg',    icon:'💪', name:'공격력 증가',   tag:'스탯', desc:'공격력이 25% 증가합니다.', apply:()=>{ P.dmgMult *= 1.25; } },
+  { id:'speed',  icon:'👟', name:'이동속도 증가', tag:'스탯', desc:'이동 속도가 12% 빨라집니다.', apply:()=>{ P.speed *= 1.12; } },
+  { id:'maxhp',  icon:'❤️', name:'최대 체력 증가', tag:'스탯', desc:'최대 체력 +25, 체력을 모두 회복합니다.', apply:()=>{ P.maxHp += 25; P.hp = P.maxHp; } },
+  { id:'heal',   icon:'🩹', name:'응급 처치',     tag:'회복', desc:'체력을 60% 회복합니다.', apply:()=>{ P.hp = Math.min(P.maxHp, P.hp + P.maxHp*0.6); } },
+  { id:'multi',  icon:'🔱', name:'멀티샷',        tag:'특수', desc:'발사할 때 총알이 1발 추가됩니다.', apply:()=>{ P.extraPellets += 1; } },
+  { id:'pierce', icon:'🗡️', name:'관통탄',        tag:'특수', desc:'총알이 좀비 1마리를 추가로 관통합니다.', apply:()=>{ P.extraPierce += 1; } },
+  { id:'bspeed', icon:'🚀', name:'탄속 증가',     tag:'스탯', desc:'총알 속도가 25% 빨라집니다.', apply:()=>{ P.bulletSpeedMult *= 1.25; } },
+];
+const WEAPON_ORDER = ['smg','shotgun','rifle','laser'];
+
+// ─── 상태 ───
+let P, zombies, bullets, particles, keys = {}, mouse = {x:0,y:0,down:false};
+let round, kills, spawnQueue, spawnTimer, state = 'start', lastShot = 0, lastTime = 0, autoAimAngle = null;
+
+function initPlayer(){
+  P = {
+    x: W/2, y: H/2, r: 14, speed: 3.6,
+    hp: 150, maxHp: 150,
+    weapon: 'pistol', ownedWeapons: ['pistol'],
+    dmgMult: 1, fireMult: 1, bulletSpeedMult: 1,
+    extraPellets: 0, extraPierce: 0,
+    hitFlash: 0,
+  };
+}
+
+function toggleMute(){
+  muted = !muted;
+  document.getElementById('muteBtn').textContent = muted ? '🔇' : '🔊';
+}
+
+function startGame(){
+  window.focus();
+  initAudio();
+  initPlayer();
+  zombies = []; bullets = []; particles = [];
+  round = 0; kills = 0;
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('gameoverScreen').classList.add('hidden');
+  document.getElementById('victoryScreen').classList.add('hidden');
+  document.getElementById('upgradeScreen').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('cheatInput').classList.remove('hidden');
+  document.getElementById('cheatGo').classList.remove('hidden');
+  nextRound();
+  state = 'play';
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+}
+
+function nextRound(){
+  round++;
+  if (round === 40){
+    // 최종 라운드: 초강력 보스
+    spawnQueue = 10;
+    spawnTimer = 30;
+    spawnBoss(true);
+    showBanner('☠️ 최종 보스 ☠️');
+  } else if (round % 20 === 0){
+    // 보스 라운드: 보스 1 + 부하 좀비 소수
+    spawnQueue = 6;
+    spawnTimer = 30;
+    spawnBoss();
+    showBanner('⚠️ 보스 등장 ⚠️');
+  } else {
+    const count = 3 + round * 2;           // 라운드마다 좀비 수 증가 (완화)
+    spawnQueue = count;
+    spawnTimer = 0;
+    showBanner('라운드 ' + round);
+  }
+}
+
+function showBanner(text){
+  SFX.roundStart();
+  const b = document.getElementById('roundBanner');
+  b.textContent = text;
+  b.style.opacity = 1;
+  setTimeout(()=> b.style.opacity = 0, 1600);
+}
+
+// ─── 보스 스폰 ───
+function spawnBoss(final = false){
+  const side = Math.floor(Math.random()*4);
+  let x, y;
+  if (side===0){ x = -60; y = H/2; }
+  else if (side===1){ x = W+60; y = H/2; }
+  else if (side===2){ x = W/2; y = -60; }
+  else { x = W/2; y = H+60; }
+
+  const hp = final ? 7000 : 450 * (1 + round * 0.06);
+  zombies.push({
+    x, y, r: final ? 64 : 46,
+    hp, maxHp: hp,
+    speed: final ? 1.0 : 0.75,
+    dmg: final ? 40 : 25,
+    color: final ? '#2b0a20' : '#6e1f3a',
+    type: 'boss', boss: true, final,
+    wobble: Math.random()*Math.PI*2,
+    attackCd: 0, hitFlash: 0,
+    chargeCd: final ? 160 : 280,   // 돌진 쿨다운 (최종 보스는 훨씬 자주)
+    charging: 0, chargeAngle: 0,
+    minionCd: final ? 260 : 420,   // 부하 소환 쿨다운
+  });
+}
+
+// ─── 좀비 스폰 ───
+function spawnZombie(){
+  const side = Math.floor(Math.random()*4);
+  let x, y;
+  if (side===0){ x = -30; y = Math.random()*H; }
+  else if (side===1){ x = W+30; y = Math.random()*H; }
+  else if (side===2){ x = Math.random()*W; y = -30; }
+  else { x = Math.random()*W; y = H+30; }
+
+  const roll = Math.random();
+  let type;
+  if (round >= 6 && roll < 0.10) type = 'tank';
+  else if (round >= 3 && roll < 0.25) type = 'fast';
+  else type = 'normal';
+
+  const scale = 1 + (round-1)*0.10; // 라운드마다 체력 증가 (완화)
+  const base = {
+    normal: { r:15, hp:25, speed:0.9+round*0.03, dmg:7,  color:'#5a7d42' },
+    fast:   { r:11, hp:14, speed:1.7+round*0.04, dmg:5,  color:'#8fae4a' },
+    tank:   { r:24, hp:90, speed:0.5+round*0.015, dmg:15, color:'#3d5232' },
+  }[type];
+
+  zombies.push({
+    x, y, r: base.r,
+    hp: base.hp*scale, maxHp: base.hp*scale,
+    speed: base.speed, dmg: base.dmg, color: base.color,
+    type, wobble: Math.random()*Math.PI*2,
+    attackCd: 0, hitFlash: 0,
+  });
+}
+
+// 자동 발사 사거리: 화면 크기에 맞게 조정 (짧은 쪽의 40%, 최대 400)
+function autoRange(w){
+  return Math.min(w.range, Math.min(W, H) * 0.4);
+}
+
+// ─── 발사 ───
+function shoot(now, angle){
+  const w = WEAPONS[P.weapon];
+  const interval = w.fireRate * P.fireMult;
+  if (now - lastShot < interval) return;
+  lastShot = now;
+  if (SFX[P.weapon]) SFX[P.weapon]();
+
+  const total = w.pellets + P.extraPellets;
+  for (let i=0;i<total;i++){
+    let a = angle;
+    if (total > 1) a += (i - (total-1)/2) * (w.spread*1.4/Math.max(total-1,1)) * 2;
+    a += (Math.random()-0.5) * w.spread;
+    bullets.push({
+      x: P.x + Math.cos(a)*P.r, y: P.y + Math.sin(a)*P.r,
+      vx: Math.cos(a)*w.bulletSpeed*P.bulletSpeedMult,
+      vy: Math.sin(a)*w.bulletSpeed*P.bulletSpeedMult,
+      dmg: w.dmg * P.dmgMult,
+      r: w.bulletSize, color: w.color,
+      pierce: (w.pierce||0) + P.extraPierce,
+      life: 90,
+    });
+  }
+  // 총구 화염
+  for (let i=0;i<3;i++){
+    particles.push({ x:P.x+Math.cos(angle)*P.r*1.4, y:P.y+Math.sin(angle)*P.r*1.4,
+      vx:Math.cos(angle)*2+(Math.random()-0.5)*2, vy:Math.sin(angle)*2+(Math.random()-0.5)*2,
+      life:8, maxLife:8, color:w.color, size:2.5 });
+  }
+}
+
+function bloodBurst(x,y,n){
+  for (let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, s = Math.random()*3+1;
+    particles.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s,
+      life:20+Math.random()*15, maxLife:35, color:'#a01f1a', size:Math.random()*3+1.5 });
+  }
+}
+
+// ─── 업그레이드 선택 ───
+function openUpgrades(){
+  state = 'upgrade';
+  const box = document.getElementById('cardBox');
+  box.innerHTML = '';
+
+  const options = [];
+  // 새 무기 후보 (아직 없는 다음 무기, 40% 확률로 등장)
+  const nextWeapon = WEAPON_ORDER.find(w => !P.ownedWeapons.includes(w));
+  let pool = [...UPGRADE_POOL];
+  // 체력이 넉넉하면 회복 카드 제외
+  if (P.hp > P.maxHp*0.8) pool = pool.filter(u => u.id !== 'heal');
+
+  if (nextWeapon && Math.random() < 0.45){
+    const wd = WEAPONS[nextWeapon];
+    options.push({ icon:wd.icon, name:'새 무기: '+wd.name, tag:'무기',
+      desc:'새로운 무기 「'+wd.name+'」(을)를 획득하고 장착합니다.' + (wd.note ? ' ' + wd.note : ''),
+      weapon:true, apply:()=>{ P.ownedWeapons.push(nextWeapon); P.weapon = nextWeapon; } });
+  }
+  while (options.length < 3){
+    const pick = pool.splice(Math.floor(Math.random()*pool.length),1)[0];
+    if (!pick) break;
+    options.push(pick);
+  }
+
+  options.forEach(op=>{
+    const el = document.createElement('div');
+    el.className = 'card' + (op.weapon ? ' weapon' : '');
+    el.innerHTML = `<div class="icon">${op.icon}</div>
+      <div class="body">
+        <div class="tag">${op.tag}</div>
+        <div class="name">${op.name}</div>
+        <div class="desc">${op.desc}</div>
+      </div>`;
+    el.onclick = ()=>{
+      SFX.upgrade();
+      op.apply();
+      document.getElementById('upgradeScreen').classList.add('hidden');
+      nextRound();
+      state = 'play';
+    };
+    box.appendChild(el);
+  });
+  document.getElementById('upgradeScreen').classList.remove('hidden');
+}
+
+// ─── 메인 루프 ───
+function loop(now){
+  const dt = Math.min((now - lastTime)/16.67, 3);
+  lastTime = now;
+
+  if (state === 'play' && !paused) update(now, dt);
+  draw();
+  // 일시정지 표시
+  if (paused && state === 'play'){
+    ctx.fillStyle = 'rgba(5,6,8,0.55)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#e8e3d8';
+    ctx.font = 'bold 28px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('⏸ 일시정지', W/2, H/2 - 10);
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = '#8a8578';
+    ctx.fillText('코드 입력 중... (Esc 또는 Enter로 복귀)', W/2, H/2 + 20);
+    ctx.textAlign = 'left';
+  }
+  updateHud();
+
+  if (state !== 'over') requestAnimationFrame(loop);
+}
+
+function update(now, dt){
+  // 이동
+  let dx=0, dy=0;
+  if (keys['KeyW']||keys['ArrowUp']) dy--;
+  if (keys['KeyS']||keys['ArrowDown']) dy++;
+  if (keys['KeyA']||keys['ArrowLeft']) dx--;
+  if (keys['KeyD']||keys['ArrowRight']) dx++;
+  // 조이스틱 이동
+  if (joy.active){
+    const jx = joy.x - joy.ox, jy = joy.y - joy.oy;
+    const d = Math.hypot(jx, jy);
+    if (d > 10){ dx += jx/d; dy += jy/d; }
+  }
+  if (dx||dy){ const l=Math.hypot(dx,dy); P.x += dx/l*P.speed*dt; P.y += dy/l*P.speed*dt; }
+  P.x = Math.max(P.r, Math.min(W-P.r, P.x));
+  P.y = Math.max(P.r, Math.min(H-P.r, P.y));
+  if (P.hitFlash>0) P.hitFlash -= dt;
+
+  // 발사
+  const curW = WEAPONS[P.weapon];
+  autoAimAngle = null;
+  let autoFired = false;
+  if (curW.auto && zombies.length > 0){
+    // 자동 발사: 사거리 안의 가장 가까운 좀비 조준
+    let nearest = null, nd = Infinity;
+    for (const z of zombies){
+      const d = Math.hypot(z.x-P.x, z.y-P.y);
+      if (d < nd){ nd = d; nearest = z; }
+    }
+    if (nd <= autoRange(curW)){
+      const a = Math.atan2(nearest.y - P.y, nearest.x - P.x);
+      autoAimAngle = a;
+      shoot(now, a);
+      autoFired = true;
+    }
+  }
+  if (!autoFired && mouse.down) shoot(now, Math.atan2(mouse.y - P.y, mouse.x - P.x));
+
+  // 스폰
+  if (spawnQueue > 0){
+    spawnTimer -= dt;
+    if (spawnTimer <= 0){
+      spawnZombie(); spawnQueue--;
+      spawnTimer = Math.max(15, 60 - round*3);
+    }
+  }
+
+  // 총알
+  for (let i=bullets.length-1;i>=0;i--){
+    const b = bullets[i];
+    b.x += b.vx*dt; b.y += b.vy*dt; b.life -= dt;
+    if (b.life<=0 || b.x<-20||b.x>W+20||b.y<-20||b.y>H+20){ bullets.splice(i,1); continue; }
+    for (let j=zombies.length-1;j>=0;j--){
+      const z = zombies[j];
+      if (Math.hypot(b.x-z.x, b.y-z.y) < z.r + b.r){
+        z.hp -= b.dmg; z.hitFlash = 4;
+        bloodBurst(b.x, b.y, 4);
+        if (z.hp <= 0){
+          bloodBurst(z.x, z.y, z.boss ? 60 : 14);
+          zombies.splice(j,1); kills++;
+          if (z.boss){
+            showBanner('👑 보스 처치!');
+            SFX.upgrade();
+            P.hp = Math.min(P.maxHp, P.hp + P.maxHp*0.5); // 보스 처치 보상: 체력 50% 회복
+          } else {
+            SFX.zombieDie();
+          }
+        }
+        if (b.pierce > 0) b.pierce--;
+        else { bullets.splice(i,1); }
+        break;
+      }
+    }
+  }
+
+  // 좀비
+  for (const z of zombies){
+    const a = Math.atan2(P.y-z.y, P.x-z.x);
+    z.wobble += 0.15*dt;
+    const wob = Math.sin(z.wobble)*0.35;
+    const distToP = Math.hypot(P.x-z.x, P.y-z.y);
+    const contact = z.r + P.r;
+
+    if (z.boss){
+      // 보스 패턴
+      if (z.minionCd > 0) z.minionCd -= dt;
+      if (z.minionCd <= 0 && zombies.length < 30){
+        // 부하 좀비 소환 (최종 보스는 3마리 + 빠름)
+        const n = z.final ? 3 : 2;
+        for (let k=0;k<n;k++){
+          const sa = Math.random()*Math.PI*2;
+          zombies.push({
+            x: z.x + Math.cos(sa)*(z.r+20), y: z.y + Math.sin(sa)*(z.r+20),
+            r:13, hp: z.final?30:20, maxHp: z.final?30:20,
+            speed: z.final?1.7:1.4, dmg:6, color:'#8fae4a',
+            type:'fast', wobble:Math.random()*7, attackCd:0, hitFlash:0,
+          });
+        }
+        SFX.roundStart();
+        z.minionCd = z.final ? 260 : 420;
+      }
+      if (z.charging > 0){
+        // 돌진 중 (최종 보스는 더 빠르게)
+        const chSpd = z.final ? 8 : 6;
+        z.x += Math.cos(z.chargeAngle) * z.speed * chSpd * dt;
+        z.y += Math.sin(z.chargeAngle) * z.speed * chSpd * dt;
+        z.charging -= dt;
+      } else {
+        if (z.chargeCd > 0) z.chargeCd -= dt;
+        if (z.chargeCd <= 0 && distToP > 160){
+          // 돌진 시작
+          z.chargeAngle = a;
+          z.charging = 45;
+          z.chargeCd = z.final ? (150 + Math.random()*80) : (260 + Math.random()*120);
+          SFX.hurt();
+        } else if (distToP > contact + 1){
+          z.x += Math.cos(a)*z.speed*dt;
+          z.y += Math.sin(a)*z.speed*dt;
+        }
+      }
+      z.x = Math.max(-80, Math.min(W+80, z.x));
+      z.y = Math.max(-80, Math.min(H+80, z.y));
+    } else {
+      // 플레이어와 닿기 전까지만 접근 (몸이 겹치지 않도록)
+      if (distToP > contact + 1){
+        z.x += Math.cos(a+wob)*z.speed*dt;
+        z.y += Math.sin(a+wob)*z.speed*dt;
+      }
+    }
+
+    // 겹쳤으면 접촉 거리까지 밀어내기
+    const d2 = Math.hypot(P.x-z.x, P.y-z.y);
+    if (d2 < contact && d2 > 0){
+      z.x = P.x - (P.x-z.x)/d2 * contact;
+      z.y = P.y - (P.y-z.y)/d2 * contact;
+      if (z.boss) z.charging = 0; // 플레이어에 닿으면 돌진 종료
+    }
+    if (z.hitFlash>0) z.hitFlash -= dt;
+    if (z.attackCd>0) z.attackCd -= dt;
+    if (Math.hypot(P.x-z.x,P.y-z.y) < contact + 4 && z.attackCd<=0){
+      P.hp -= z.dmg; P.hitFlash = 8; z.attackCd = 40;
+      bloodBurst(P.x, P.y, 8);
+      SFX.hurt();
+      if (P.hp <= 0){ gameOver(); return; }
+    }
+  }
+
+  // 좀비끼리 겹침 방지
+  for (let i=0;i<zombies.length;i++){
+    for (let j=i+1;j<zombies.length;j++){
+      const a = zombies[i], b = zombies[j];
+      const dx = b.x-a.x, dy = b.y-a.y;
+      const d = Math.hypot(dx,dy), min = a.r + b.r;
+      if (d < min && d > 0){
+        const push = (min-d)/2, nx = dx/d, ny = dy/d;
+        a.x -= nx*push; a.y -= ny*push;
+        b.x += nx*push; b.y += ny*push;
+      }
+    }
+  }
+
+  // 파티클
+  for (let i=particles.length-1;i>=0;i--){
+    const p = particles[i];
+    p.x += p.vx*dt; p.y += p.vy*dt; p.vx*=0.94; p.vy*=0.94; p.life-=dt;
+    if (p.life<=0) particles.splice(i,1);
+  }
+
+  // 라운드 종료
+  if (spawnQueue===0 && zombies.length===0){
+    if (round >= 40){ victory(); return; } // 최종 라운드 클리어 = 승리!
+    P.hp = Math.min(P.maxHp, P.hp + P.maxHp*0.3); // 클리어 보상: 체력 30% 회복
+    openUpgrades();
+  }
+}
+
+function victory(){
+  state = 'over';
+  SFX.victory();
+  document.getElementById('victoryScore').textContent = `40 라운드 완주 · 좀비 ${kills}마리 처치`;
+  document.getElementById('victoryScreen').classList.remove('hidden');
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('cheatInput').classList.add('hidden');
+  document.getElementById('cheatGo').classList.add('hidden');
+}
+
+function gameOver(){
+  state = 'over';
+  SFX.gameOver();
+  document.getElementById('finalScore').textContent = `라운드 ${round} 도달 · 좀비 ${kills}마리 처치`;
+  document.getElementById('gameoverScreen').classList.remove('hidden');
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('cheatInput').classList.add('hidden');
+  document.getElementById('cheatGo').classList.add('hidden');
+}
+
+// ─── 그리기 ───
+function draw(){
+  ctx.fillStyle = '#101317';
+  ctx.fillRect(0,0,W,H);
+  // 바닥 그리드
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 1;
+  for (let x=0;x<W;x+=60){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y=0;y<H;y+=60){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+  // 파티클
+  for (const p of particles){
+    ctx.globalAlpha = Math.max(p.life/p.maxLife, 0);
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // 총알
+  for (const b of bullets){
+    ctx.fillStyle = b.color;
+    ctx.shadowColor = b.color; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,7); ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+
+  // 좀비
+  for (const z of zombies){
+    // 보스: 돌진 예열/돌진 중 붉게 빛남
+    if (z.boss){
+      ctx.shadowColor = z.final ? '#b026ff' : '#ff3050';
+      ctx.shadowBlur = z.charging > 0 ? 25 : 10;
+    }
+    ctx.fillStyle = z.hitFlash>0 ? '#ffffff' : z.color;
+    ctx.beginPath(); ctx.arc(z.x,z.y,z.r,0,7); ctx.fill();
+    ctx.shadowBlur = 0;
+    // 보스 뿔
+    if (z.boss){
+      ctx.fillStyle = '#3a0f1e';
+      const ha = Math.atan2(P.y-z.y,P.x-z.x);
+      for (const off of [-0.6, 0.6]){
+        const hx = z.x + Math.cos(ha+Math.PI+off)*z.r*0.9;
+        const hy = z.y + Math.sin(ha+Math.PI+off)*z.r*0.9;
+        ctx.beginPath();
+        ctx.arc(hx, hy, z.r*0.28, 0, 7);
+        ctx.fill();
+      }
+    }
+    // 눈
+    const a = Math.atan2(P.y-z.y,P.x-z.x);
+    ctx.fillStyle = z.boss ? '#ff2244' : '#d33';
+    const ex = z.x+Math.cos(a)*z.r*0.45, ey = z.y+Math.sin(a)*z.r*0.45;
+    ctx.beginPath(); ctx.arc(ex-Math.sin(a)*z.r*0.3, ey+Math.cos(a)*z.r*0.3, z.r*0.13,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(ex+Math.sin(a)*z.r*0.3, ey-Math.cos(a)*z.r*0.3, z.r*0.13,0,7); ctx.fill();
+    // 체력바 (보스는 상단 큰 바 사용)
+    if (!z.boss && z.hp < z.maxHp){
+      const bw = z.r*2;
+      ctx.fillStyle = 'rgba(0,0,0,.5)';
+      ctx.fillRect(z.x-bw/2, z.y-z.r-9, bw, 4);
+      ctx.fillStyle = '#6fbf4a';
+      ctx.fillRect(z.x-bw/2, z.y-z.r-9, bw*Math.max(z.hp/z.maxHp,0), 4);
+    }
+  }
+
+  // 보스 체력바 (화면 상단 중앙)
+  const boss = zombies.find(z => z.boss);
+  if (boss && state === 'play'){
+    const bw = Math.min(W*0.6, 480), bh = 14;
+    const bx = (W-bw)/2, by = 64;
+    ctx.fillStyle = 'rgba(0,0,0,.6)';
+    ctx.fillRect(bx-2, by-2, bw+4, bh+4);
+    ctx.fillStyle = '#3a0f1e';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = '#d8283f';
+    ctx.fillRect(bx, by, bw*Math.max(boss.hp/boss.maxHp,0), bh);
+    ctx.fillStyle = '#e8e3d8';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(boss.final ? '☠️ 최종 보스' : '👑 보스', W/2, by-8);
+    ctx.textAlign = 'left';
+  }
+
+  // 플레이어
+  if (state==='play' || state==='upgrade'){
+    const a = autoAimAngle !== null ? autoAimAngle : Math.atan2(mouse.y-P.y, mouse.x-P.x);
+    ctx.fillStyle = P.hitFlash>0 ? '#ff6b5e' : '#d8d2c2';
+    ctx.beginPath(); ctx.arc(P.x,P.y,P.r,0,7); ctx.fill();
+    drawGun(a);
+  }
+
+  // 자동 발사 사거리 표시 (레이저건)
+  if ((state==='play') && P && WEAPONS[P.weapon].auto){
+    ctx.strokeStyle = 'rgba(224,122,255,0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([8,10]);
+    ctx.beginPath(); ctx.arc(P.x, P.y, autoRange(WEAPONS[P.weapon]), 0, 7); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // 조이스틱 표시 (왼쪽 하단 고정, 터치 기기)
+  if (isTouch && state === 'play'){
+    const b = joyBase();
+    ctx.strokeStyle = joy.active ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(b.x, b.y, 50, 0, 7); ctx.stroke();
+    let kx = b.x, ky = b.y;
+    if (joy.active){
+      const jx = joy.x-b.x, jy = joy.y-b.y, d = Math.hypot(jx,jy);
+      const cl = Math.min(d, 50);
+      kx = b.x + (d>0? jx/d*cl : 0); ky = b.y + (d>0? jy/d*cl : 0);
+    }
+    ctx.fillStyle = joy.active ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.18)';
+    ctx.beginPath(); ctx.arc(kx, ky, 22, 0, 7); ctx.fill();
+  }
+}
+
+// ─── 무기별 총 외형 ───
+function drawGun(a){
+  ctx.save();
+  ctx.translate(P.x, P.y);
+  ctx.rotate(a);
+  ctx.lineCap = 'round';
+  const r = P.r;
+
+  switch (P.weapon){
+    case 'pistol': // 짧은 총신 + 손잡이 느낌
+      ctx.strokeStyle = '#8a8a8a'; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(r*0.4, 0); ctx.lineTo(r*1.5, 0); ctx.stroke();
+      ctx.fillStyle = '#5c5c5c';
+      ctx.fillRect(r*0.4, 2, 5, 7);
+      break;
+
+    case 'smg': // 총신 + 아래로 튀어나온 탄창
+      ctx.strokeStyle = '#6f7d8c'; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(r*0.3, 0); ctx.lineTo(r*1.9, 0); ctx.stroke();
+      ctx.fillStyle = '#4a5561';
+      ctx.fillRect(r*0.8, 3, 6, 11); // 탄창
+      ctx.strokeStyle = '#9fb2c4'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(r*1.9, 0); ctx.lineTo(r*2.2, 0); ctx.stroke(); // 얇은 총구
+      break;
+
+    case 'shotgun': // 두꺼운 더블 배럴
+      ctx.strokeStyle = '#a1673c'; ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(r*0.3, -3); ctx.lineTo(r*2.0, -3); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(r*0.3, 3); ctx.lineTo(r*2.0, 3); ctx.stroke();
+      ctx.fillStyle = '#6b4226'; // 나무 그립
+      ctx.fillRect(r*0.2, -6, 8, 12);
+      ctx.fillStyle = '#2e2e2e'; // 총구 마감
+      ctx.fillRect(r*1.9, -6, 4, 12);
+      break;
+
+    case 'rifle': // 긴 총신 + 개머리판 + 조준경
+      ctx.strokeStyle = '#4f5d45'; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(r*0.1, 0); ctx.lineTo(r*2.5, 0); ctx.stroke();
+      ctx.fillStyle = '#3a4433';
+      ctx.fillRect(-r*0.5, -3, r*0.6, 6); // 개머리판
+      ctx.fillRect(r*1.0, 3, 6, 9);       // 탄창
+      ctx.fillStyle = '#222';
+      ctx.fillRect(r*0.9, -7, 10, 4);     // 조준경
+      ctx.strokeStyle = '#7d8f6d'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(r*2.5, 0); ctx.lineTo(r*2.8, 0); ctx.stroke();
+      break;
+
+    case 'sniper': // 아주 긴 총신 + 대형 조준경 + 총구 제동기
+      ctx.strokeStyle = '#5c6b73'; ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(-r*0.6, 0); ctx.lineTo(r*3.2, 0); ctx.stroke();
+      ctx.fillStyle = '#3a444b';
+      ctx.fillRect(-r*0.8, -3, r*0.5, 7);  // 개머리판
+      ctx.fillRect(r*0.9, 3, 5, 8);        // 탄창
+      ctx.fillStyle = '#101418';           // 대형 조준경
+      ctx.fillRect(r*0.5, -9, 16, 5);
+      ctx.fillStyle = '#9ff3ff';           // 렌즈 반짝임
+      ctx.fillRect(r*0.5+12, -8, 3, 3);
+      ctx.fillStyle = '#2e2e2e';           // 총구 제동기
+      ctx.fillRect(r*3.0, -4, 6, 8);
+      break;
+
+    case 'laser': // 발광 총신 + 에너지 구체
+      ctx.shadowColor = '#e07aff'; ctx.shadowBlur = 12;
+      ctx.strokeStyle = '#b04fd6'; ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.moveTo(r*0.3, 0); ctx.lineTo(r*2.1, 0); ctx.stroke();
+      ctx.strokeStyle = '#f0c4ff'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(r*0.3, 0); ctx.lineTo(r*2.1, 0); ctx.stroke();
+      // 총구 에너지 구체 (발사 주기에 맞춰 깜빡임)
+      const pulse = 3 + Math.sin(performance.now()/90)*1.5;
+      ctx.fillStyle = '#e07aff';
+      ctx.beginPath(); ctx.arc(r*2.1, 0, pulse, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(r*2.1, 0, pulse*0.45, 0, 7); ctx.fill();
+      // 에너지 셀
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#7a2f96';
+      ctx.fillRect(r*0.6, 3, 8, 8);
+      break;
+  }
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function updateHud(){
+  if (!P) return;
+  document.getElementById('hpbar').style.width = Math.max(P.hp/P.maxHp*100,0)+'%';
+  document.getElementById('roundText').textContent = round >= 40 ? '최종 라운드' : '라운드 ' + round;
+  document.getElementById('zombieCount').textContent = '남은 좀비: ' + (zombies.length + spawnQueue);
+  const w = WEAPONS[P.weapon];
+  document.getElementById('weaponText').textContent = w.icon + ' ' + w.name + (w.auto ? ' (자동)' : '');
+  document.getElementById('scoreText').textContent = '처치: ' + kills;
+  document.getElementById('statsText').textContent =
+    `공격력 x${P.dmgMult.toFixed(2)}\n공격속도 x${(1/P.fireMult).toFixed(2)}\n추가 탄환 +${P.extraPellets} · 관통 +${P.extraPierce}`;
+}
+
+// ─── 치트 코드 ───
+const cheatInput = document.getElementById('cheatInput');
+let paused = false;
+
+cheatInput.addEventListener('focus', () => { if (state === 'play') paused = true; });
+cheatInput.addEventListener('blur',  () => { paused = false; lastTime = performance.now(); });
+
+function runCheat(){
+  // 한글 IME 대응: 유니코드 정규화 + 공백 제거
+  const code = cheatInput.value.normalize('NFC').replace(/\s/g, '');
+  let ok = false;
+  if (code === '끝보스'){
+    // 최종 보스 라운드로 즉시 이동
+    document.getElementById('upgradeScreen').classList.add('hidden');
+    zombies = []; bullets = []; particles = [];
+    P.hp = P.maxHp;
+    round = 39;
+    nextRound(); // → 40 라운드 최종 보스
+    state = 'play';
+    ok = true;
+  } else if (code === '발사속도20배'){
+    // 발사 속도 20배
+    P.fireMult /= 20;
+    SFX.upgrade();
+    ok = true;
+  } else if (/^공격속도\d+배?$/.test(code)){
+    // 공격 속도 N배 (최대 1000)
+    const n = Math.min(parseInt(code.match(/\d+/)[0], 10), 1000);
+    if (n >= 1){
+      P.fireMult /= n;
+      SFX.upgrade();
+      ok = true;
+    }
+  } else if (/^탄환더줘\d*$/.test(code)){
+    // 추가 탄환 +N (숫자 없으면 +1, 최대 100)
+    const n = Math.min(parseInt(code.replace('탄환더줘',''), 10) || 1, 100);
+    P.extraPellets += n;
+    SFX.upgrade();
+    ok = true;
+  } else {
+    // 무기 이름 입력 시 해당 무기 지급 및 장착
+    for (const key in WEAPONS){
+      if (code === WEAPONS[key].name){
+        if (!P.ownedWeapons.includes(key)) P.ownedWeapons.push(key);
+        P.weapon = key;
+        SFX.upgrade();
+        ok = true;
+        break;
+      }
+    }
+  }
+  if (ok){
+    cheatInput.value = '';
+    cheatInput.blur();
+  } else {
+    cheatInput.classList.remove('shake');
+    void cheatInput.offsetWidth; // 애니메이션 재시작
+    cheatInput.classList.add('shake');
+  }
+  updateHud();
+}
+
+cheatInput.addEventListener('keydown', e => {
+  e.stopPropagation();
+  // 한글 조합 중 Enter는 무시 (조합 확정용 Enter)
+  if (e.isComposing || e.keyCode === 229) return;
+  if (e.key === 'Escape'){ cheatInput.blur(); return; }
+  if (e.key === 'Enter') runCheat();
+});
+document.getElementById('cheatGo').addEventListener('click', runCheat);
+
+// ─── 입력 ───
+addEventListener('keydown', e => {
+  if (e.target === cheatInput) return; // 코드 입력 중에는 게임 키 무시
+  keys[e.key.toLowerCase()] = true;
+  if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) e.preventDefault();
+});
+addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+canvas.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+canvas.addEventListener('mousedown', () => { mouse.down = true; window.focus(); });
+addEventListener('mouseup', () => mouse.down = false);
+
+// ─── 가상 조이스틱 (모바일) ───
+// 왼쪽 하단 고정 존: 이동 조이스틱 / 그 외 화면: 조준 + 발사
+const joy = { active:false, id:null, ox:0, oy:0, x:0, y:0 };
+const aim = { active:false, id:null };
+function joyBase(){ return { x: 75, y: H - 75 }; }
+function inJoyZone(x, y){
+  const b = joyBase();
+  return Math.hypot(x - b.x, y - b.y) < 120; // 왼쪽 하단 조이스틱 존
+}
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  initAudio();
+  for (const t of e.changedTouches){
+    if (inJoyZone(t.clientX, t.clientY) && !joy.active){
+      const b = joyBase();
+      joy.active = true; joy.id = t.identifier;
+      joy.ox = b.x; joy.oy = b.y;
+      joy.x = t.clientX; joy.y = t.clientY;
+    } else if (!aim.active){
+      aim.active = true; aim.id = t.identifier;
+      mouse.x = t.clientX; mouse.y = t.clientY; mouse.down = true;
+    }
+  }
+}, {passive:false});
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches){
+    if (joy.active && t.identifier === joy.id){ joy.x = t.clientX; joy.y = t.clientY; }
+    else if (aim.active && t.identifier === aim.id){ mouse.x = t.clientX; mouse.y = t.clientY; }
+  }
+}, {passive:false});
+
+function endTouch(e){
+  for (const t of e.changedTouches){
+    if (joy.active && t.identifier === joy.id) joy.active = false;
+    if (aim.active && t.identifier === aim.id){ aim.active = false; mouse.down = false; }
+  }
+}
+addEventListener('touchend', endTouch);
+addEventListener('touchcancel', endTouch);
+</script>
+</body>
+</html>
