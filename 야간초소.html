@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>야간 초소 · The Night Gate</title>
+<style>
+  :root{
+    --ink:#0a0c0b;          /* near-black */
+    --pine:#12201a;         /* dark moss */
+    --moss:#1c3126;
+    --bone:#e9e4d4;         /* moonlit off-white */
+    --dim:#8a9188;
+    --amber:#d8a24a;        /* lantern glow */
+    --amber-soft:#c99a4d33;
+    --blood:#8f2b25;        /* danger / reject */
+    --blood-lit:#c23a30;
+    --pass:#3f5d47;         /* muted forest for pass */
+    --pass-lit:#5c8265;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:
+      radial-gradient(120% 90% at 50% -10%, #16241d 0%, var(--ink) 60%);
+    color:var(--bone);
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    display:flex;flex-direction:column;align-items:center;
+    min-height:100%;overflow-x:hidden;
+    user-select:none;
+  }
+  #wrap{width:100%;max-width:520px;padding:14px 14px 26px;display:flex;flex-direction:column;gap:12px;}
+
+  /* ---- HUD (logbook strip) ---- */
+  .hud{
+    display:flex;justify-content:space-between;align-items:center;
+    font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace;
+    font-size:12px;letter-spacing:.06em;color:var(--dim);
+    border-bottom:1px solid #ffffff14;padding-bottom:8px;
+  }
+  .hud b{color:var(--bone);font-weight:600;}
+  .hearts{letter-spacing:2px;font-size:15px;color:var(--blood-lit);}
+  .hearts .gone{color:#3a2422;}
+  .money{font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.06em;color:var(--dim);}
+  .money b{color:var(--amber);font-weight:700;font-size:15px;}
+
+  /* ---- timer ---- */
+  #timerTrack{height:4px;background:#ffffff12;border-radius:2px;overflow:hidden;}
+  #timerFill{height:100%;width:100%;background:linear-gradient(90deg,var(--amber),var(--blood-lit));transition:width .1s linear;}
+
+  /* ---- stage ---- */
+  #stageWrap{position:relative;width:100%;aspect-ratio:1/1;border-radius:14px;overflow:hidden;
+    box-shadow:inset 0 0 90px #000, 0 10px 40px #0009;background:#050706;}
+  canvas{display:block;width:100%;height:100%;}
+  #flash{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .18s;}
+  #verdict{position:absolute;left:0;right:0;bottom:0;padding:12px 14px;
+    font-size:14px;line-height:1.35;background:linear-gradient(#0000,#000a);
+    opacity:0;transition:opacity .2s;font-family:ui-monospace,monospace;letter-spacing:.02em;}
+  #verdict .tag{font-weight:700;}
+
+  /* ---- buttons ---- */
+  #buttons{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .decide{
+    font-family:inherit;font-size:20px;letter-spacing:.03em;color:var(--bone);font-weight:600;
+    padding:17px 8px;border-radius:12px;border:1.5px solid;cursor:pointer;
+    box-shadow:0 4px 14px #0006, inset 0 1px 0 #ffffff14;
+    transition:transform .06s, background .15s, box-shadow .15s;
+  }
+  .decide small{display:block;font-size:11px;letter-spacing:.14em;color:#d9d4c7;
+    margin-top:4px;font-family:ui-monospace,monospace;text-transform:uppercase;font-weight:400;}
+  .decide:active{transform:translateY(2px) scale(.99);}
+  #passBtn{background:linear-gradient(#26402f,#16281d);border-color:#6fa07d;}
+  #passBtn:active{background:var(--pass-lit);box-shadow:0 0 22px #5c826566;}
+  #rejectBtn{background:linear-gradient(#43191500,#431915);background:linear-gradient(#4a1a15,#2c0f0d);border-color:#d24a3f;}
+  #rejectBtn:active{background:var(--blood-lit);box-shadow:0 0 22px #c23a3066;}
+  #keepBtn{background:linear-gradient(#26402f,#16281d);border-color:#6fa07d;}
+  #keepBtn:active{background:var(--pass-lit);box-shadow:0 0 22px #5c826566;}
+  #expelBtn{background:linear-gradient(#4a1a15,#2c0f0d);border-color:#d24a3f;}
+  #expelBtn:active{background:var(--blood-lit);box-shadow:0 0 22px #c23a3066;}
+  .decide:disabled{opacity:.35;cursor:default;}
+
+  #refBtn{
+    background:none;border:1px solid #ffffff1a;color:var(--dim);border-radius:10px;
+    font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em;
+    padding:9px;cursor:pointer;width:100%;
+  }
+  #refBtn:active{color:var(--bone);}
+
+  /* ---- overlays ---- */
+  .screen{position:fixed;inset:0;background:radial-gradient(120% 90% at 50% 0%,#16241d,#05070699 70%,#000c);
+    backdrop-filter:blur(2px);display:flex;flex-direction:column;align-items:center;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;padding:24px;z-index:5;}
+  .card{max-width:440px;width:100%;text-align:center;margin-top:auto;margin-bottom:auto;}
+  .card h1{font-size:34px;margin:0 0 4px;letter-spacing:.02em;font-weight:600;}
+  .card .sub{font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.32em;
+    color:var(--amber);text-transform:uppercase;margin-bottom:20px;}
+  .card p{color:#cfcabb;line-height:1.6;font-size:15px;margin:0 0 10px;}
+  .card .rules{text-align:left;font-size:14px;color:#bdb9ac;background:#ffffff08;
+    border:1px solid #ffffff12;border-radius:12px;padding:14px 16px;margin:16px 0 22px;line-height:1.6;}
+  .card .rules b{color:var(--bone);}
+  .primary{font-family:inherit;font-size:20px;color:var(--ink);background:var(--amber);
+    border:none;border-radius:12px;padding:15px 34px;cursor:pointer;letter-spacing:.03em;font-weight:600;}
+  .primary:active{transform:translateY(2px);}
+  .hidden{display:none!important;}
+
+  /* reference gallery */
+  #refGrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:18px 0 20px;}
+  #refGrid figure{margin:0;background:#ffffff08;border:1px solid #ffffff12;border-radius:10px;padding:6px;}
+  #refGrid canvas{width:100%;aspect-ratio:1/1;border-radius:6px;background:#050706;}
+  #refGrid figcaption{font-family:ui-monospace,monospace;font-size:11px;color:var(--dim);
+    text-align:center;margin-top:4px;letter-spacing:.08em;}
+  .ghost{background:none;border:1px solid #ffffff22;color:var(--bone);border-radius:10px;
+    font-family:ui-monospace,monospace;font-size:13px;padding:11px 22px;cursor:pointer;letter-spacing:.08em;}
+
+  /* shelter review */
+  #shelterGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:16px 0 20px;}
+  #shelterGrid .cell{position:relative;background:#ffffff08;border:1.5px solid #ffffff14;
+    border-radius:10px;padding:5px;cursor:pointer;transition:border-color .12s, background .12s;}
+  #shelterGrid .cell canvas{width:100%;aspect-ratio:1/1;border-radius:6px;background:#050706;display:block;}
+  #shelterGrid .cell .cap{font-family:ui-monospace,monospace;font-size:10px;color:var(--dim);
+    text-align:center;margin-top:3px;letter-spacing:.06em;}
+  #shelterGrid .cell .mk{position:absolute;left:5px;right:5px;top:5px;bottom:22px;border-radius:6px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    font-family:ui-monospace,monospace;font-size:12px;font-weight:700;letter-spacing:.04em;
+    opacity:0;transition:opacity .12s;text-align:center;line-height:1.25;}
+  #shelterGrid .cell.out{border-color:#d24a3f;background:#3a141199;}
+  #shelterGrid .cell.out .mk.eject{opacity:1;color:#f0b3ad;background:#2a0d0bcc;}
+  #shelterGrid .cell.reveal{cursor:default;}
+  #shelterGrid .cell .mk.res{opacity:1;}
+  .res-bad{color:#f4b0a9;background:#2a0d0bd9;}
+  .res-good{color:#a9d6b4;background:#12251ad9;}
+  .res-warn{color:#e6c27a;background:#241d0fd9;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="hud">
+    <span>일차 <b id="dayNum">1</b> · 문 앞 <b id="progress">0/0</b></span>
+    <span class="money"><b id="money">0</b>원</span>
+  </div>
+  <div id="timerTrack"><div id="timerFill"></div></div>
+
+  <div id="stageWrap">
+    <canvas id="stage" width="600" height="600"></canvas>
+    <div id="flash"></div>
+    <div id="verdict"></div>
+  </div>
+
+  <button id="refBtn">정상 도감 참고 (시간은 계속 흐른다)</button>
+
+  <div id="buttons">
+    <button class="decide" id="passBtn">통과<small>정상 동물</small></button>
+    <button class="decide" id="rejectBtn">거부<small>스킨워커</small></button>
+  </div>
+</div>
+
+<!-- START -->
+<div class="screen" id="startScreen">
+  <div class="card">
+    <div class="sub">The Night Gate</div>
+    <h1>야간 초소</h1>
+    <p>숲의 경계에 선 초소지기. 밤마다 짐승들이 하나씩 랜턴 불빛으로 걸어 나온다. 멀쩡한 것은 <b>통과</b>시켜 대피소로 들이고, 가죽을 쓴 <i>다른 것</i> — 스킨워커는 <b>거부</b>해 돌려보내라.</p>
+    <div class="rules">
+      이질감의 징후 —<br>
+      <b>눈이 지나치게 크다 · 귀가 없다 · 눈이 세 개 · 눈이 텅 비었다 · 다리가 너무 많다 · 목이 늘어났다 · 색이 병들었다 · 사람처럼 웃는다 · 무기를 쥐고 있다 · 그림자가 없다.</b>
+    </div>
+    <p style="font-size:13px;color:#cfcabb;line-height:1.6">문 앞에서는 판정이 맞았는지 <b>알려주지 않는다.</b> 하루가 끝나면 <b>대피소</b>로 가서, 들여보낸 손님들을 다시 살펴 숨어든 스킨워커를 골라 밖으로 내보내라.</p>
+    <p style="font-size:13px;color:var(--dim)">밤이 오면 대피소에 남은 스킨워커가 일반 동물을 <b>한 마리당 두 마리씩</b> 물어 죽인다(마지막 한 마리는 남긴다). 살아남은 동물은 한 마리당 <b>10원</b>을 벌어준다. <b>2일마다</b> 정해진 상납금을 채우지 못하면 그 자리에서 끝이다.</p>
+    <br><button class="primary" id="startBtn">초소로</button>
+  </div>
+</div>
+
+<!-- REFERENCE -->
+<div class="screen hidden" id="refScreen">
+  <div class="card">
+    <div class="sub">Field Log · 정상 도감</div>
+    <h1 style="font-size:24px">멀쩡한 짐승들</h1>
+    <div id="refGrid"></div>
+    <button class="ghost" id="refClose">닫는다</button>
+  </div>
+</div>
+
+<!-- SHELTER -->
+<div class="screen hidden" id="shelterScreen">
+  <div class="card" style="max-width:480px">
+    <div class="sub" id="shelterSub">Shelter · 대피소</div>
+    <h1 id="shelterTitle" style="font-size:23px">대피소 점검</h1>
+    <p id="shelterMsg" style="font-size:14px"></p>
+    <div id="shelterGrid"></div>
+    <button class="primary" id="shelterBtn">밤을 맞는다</button>
+  </div>
+</div>
+
+<!-- INSPECT -->
+<div class="screen hidden" id="inspectScreen">
+  <div class="card" style="max-width:360px">
+    <div class="sub">Inspect · 자세히 보기</div>
+    <canvas id="inspectCanvas" width="320" height="320"
+      style="width:min(74vw,320px);aspect-ratio:1/1;border-radius:12px;background:#050706;
+      margin:8px auto 12px;display:block;box-shadow:inset 0 0 60px #000,0 8px 30px #0009;"></canvas>
+    <div id="inspectName" style="font-size:18px;margin-bottom:2px"></div>
+    <div id="inspectStatus" style="font-family:ui-monospace,monospace;font-size:12px;
+      color:var(--dim);letter-spacing:.06em;margin-bottom:16px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <button class="decide" id="keepBtn">대피소에 둔다<small>정상이라 판단</small></button>
+      <button class="decide" id="expelBtn">밖으로 내보낸다<small>스킨워커 의심</small></button>
+    </div>
+    <button class="ghost" id="inspectClose">그대로 닫기</button>
+  </div>
+</div>
+
+<!-- GAME OVER -->
+<div class="screen hidden" id="overScreen">
+  <div class="card">
+    <div class="sub" id="overSub">Lights Out</div>
+    <h1 id="overTitle">초소의 불이 꺼졌다</h1>
+    <p id="overText"></p>
+    <br><button class="primary" id="againBtn">다시 선다</button>
+  </div>
+</div>
+
+<script>
+(()=>{
+"use strict";
+const cv=document.getElementById('stage'), ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+
+// ---------- species (normal templates) ----------
+const SPECIES={
+  rabbit:{name:'토끼', fur:'#d8d2c4', ear:'rabbit'},
+  cat:   {name:'고양이', fur:'#6f6f74', ear:'cat'},
+  fox:   {name:'여우', fur:'#cf7530', ear:'fox'},
+  deer:  {name:'사슴', fur:'#b98356', ear:'deer'},
+  bear:  {name:'곰',   fur:'#5c4736', ear:'bear'},
+  dog:   {name:'개',   fur:'#c19a63', ear:'dog'},
+};
+const KEYS=Object.keys(SPECIES);
+
+// ---------- anomalies ----------
+const ANOM={
+  BIG_EYES:  {t:1, why:'눈이 지나치게 컸다'},
+  NO_EARS:   {t:1, why:'귀가 없었다'},
+  THREE_EYES:{t:1, why:'눈이 세 개였다'},
+  HOLLOW:    {t:1, why:'눈이 텅 비어 있었다'},
+  EXTRA_LEGS:{t:1, why:'다리가 너무 많았다'},
+  TEETH:     {t:1, why:'사람처럼 웃고 있었다'},
+  LONG_NECK: {t:2, why:'목이 부자연스럽게 늘어났다'},
+  ONE_EAR:   {t:2, why:'귀가 한 쪽뿐이었다'},
+  WRONG_COLOR:{t:2,why:'가죽 색이 병들어 있었다'},
+  WEAPON:    {t:1, why:'짐승이 무기를 쥐고 있었다'},
+  NO_SHADOW: {t:2, why:'그림자가 없었다'},
+};
+
+// ---------- state ----------
+let cur=null, day=1, savedTotal=0, money=0;
+let phase='gate';           // gate | between | shelter | resolve | over
+let timeLeft=0, timeMax=12, appear=0, tPrev=0;
+let dayLen=0, idx=0, shelter=[], rejSkin=0, turnedAway=0;
+let inspecting=null;
+
+function anomalyPool(){
+  // tier2 anomalies unlocked from day 3
+  return Object.keys(ANOM).filter(k=> ANOM[k].t===1 || day>=3);
+}
+
+function wrongColor(base){
+  const opts=['#8f7fae','#7fa07a','#9aa0a6','#a76d84','#6d8fa7'];
+  return opts[(Math.random()*opts.length)|0];
+}
+
+function makeCreature(){
+  const key=KEYS[(Math.random()*KEYS.length)|0];
+  const sp=SPECIES[key];
+  const c={species:key, name:sp.name, fur:sp.fur, ear:sp.ear,
+    eyeR:1, eyeCount:2, hollow:false, ears:2, legs:4, neck:1, smile:false,
+    shadow:true, weapon:false,
+    anomaly:null, blink:0, blinkT:1.5+Math.random()*2};
+  // ~48% anomalous, ramping slightly
+  const anomChance=0.42+Math.min(0.12,day*0.01);
+  if(Math.random()<anomChance){
+    const pool=anomalyPool();
+    const a=pool[(Math.random()*pool.length)|0];
+    c.anomaly=a;
+    if(a==='BIG_EYES')   c.eyeR=2.15;
+    if(a==='NO_EARS')    c.ears=0;
+    if(a==='ONE_EAR')    c.ears=1;
+    if(a==='THREE_EYES') c.eyeCount=3;
+    if(a==='HOLLOW')     c.hollow=true;
+    if(a==='EXTRA_LEGS') c.legs=6;
+    if(a==='LONG_NECK')  c.neck=3.4;
+    if(a==='TEETH')      c.smile=true;
+    if(a==='WRONG_COLOR')c.fur=wrongColor(sp.fur);
+    if(a==='WEAPON')     c.weapon=true;
+    if(a==='NO_SHADOW')  c.shadow=false;
+  }
+  return c;
+}
+
+// ---------- drawing ----------
+function roundRect(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);
+  g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}
+
+function drawEar(g,side,type,hx,hy,hr,fur){
+  const s=side; // -1 left, +1 right
+  g.fillStyle=fur; g.strokeStyle='#00000030'; g.lineWidth=hr*0.05;
+  const ex=hx+s*hr*0.62, ey=hy-hr*0.62;
+  g.save();
+  if(type==='rabbit'){
+    g.translate(ex,ey);g.rotate(s*0.18);
+    g.beginPath();g.ellipse(0,-hr*0.55,hr*0.24,hr*0.85,0,0,7);g.fill();
+    g.fillStyle='#e7b7bd';g.beginPath();g.ellipse(0,-hr*0.55,hr*0.11,hr*0.55,0,0,7);g.fill();
+  }else if(type==='cat'){
+    g.beginPath();g.moveTo(ex-s*hr*0.05,ey+hr*0.2);g.lineTo(ex+s*hr*0.42,ey-hr*0.55);
+    g.lineTo(ex+s*hr*0.5,ey+hr*0.28);g.closePath();g.fill();
+  }else if(type==='fox'){
+    g.beginPath();g.moveTo(ex-s*hr*0.05,ey+hr*0.25);g.lineTo(ex+s*hr*0.55,ey-hr*0.7);
+    g.lineTo(ex+s*hr*0.55,ey+hr*0.3);g.closePath();g.fill();
+    g.fillStyle='#2a2320';g.beginPath();g.moveTo(ex+s*hr*0.2,ey-hr*0.35);
+    g.lineTo(ex+s*hr*0.5,ey-hr*0.62);g.lineTo(ex+s*hr*0.48,ey-hr*0.25);g.closePath();g.fill();
+  }else if(type==='bear'){
+    g.beginPath();g.arc(ex,ey-hr*0.1,hr*0.28,0,7);g.fill();
+  }else if(type==='deer'){
+    g.strokeStyle='#8a6a45';g.lineWidth=hr*0.09;g.lineCap='round';
+    g.beginPath();g.moveTo(ex,ey);g.lineTo(ex+s*hr*0.3,ey-hr*0.9);
+    g.moveTo(ex+s*hr*0.12,ey-hr*0.4);g.lineTo(ex+s*hr*0.55,ey-hr*0.5);
+    g.moveTo(ex+s*hr*0.2,ey-hr*0.68);g.lineTo(ex+s*hr*0.02,ey-hr*1.1);g.stroke();
+    g.fillStyle=fur;g.beginPath();g.ellipse(ex+s*hr*0.05,ey+hr*0.05,hr*0.14,hr*0.26,s*0.3,0,7);g.fill();
+  }else if(type==='dog'){
+    g.fillStyle=fur;g.beginPath();g.ellipse(ex+s*hr*0.08,ey+hr*0.42,hr*0.2,hr*0.5,s*0.25,0,7);g.fill();
+  }
+  g.restore();
+}
+
+// draw one creature into ctx g, centered at (cx,cy) sized by S, alpha a
+// layout is built around the origin (0,0) so the whole body stays in frame
+function drawCreature(g,c,cx,cy,S,a,bob){
+  bob=bob||0;
+  g.save();
+  g.globalAlpha=a;
+  g.translate(cx,cy+bob);
+
+  const hr=S*0.17;                              // head radius
+  const bodyCY=S*0.14, bodyW=S*0.52, bodyH=S*0.40;
+  const bodyTopY=bodyCY-bodyH/2;
+  const neckH=S*0.09*c.neck;                    // normal ~0.09S, long ~0.25S
+  const headCY=bodyTopY-neckH-hr*0.5;
+
+  // legs first, so the body tucks over the tops and they poke out below
+  const legN=c.legs, legTopY=bodyCY+bodyH*0.02, legW=S*0.085, legH=S*0.26;
+  const span=bodyW*0.9;
+  for(let i=0;i<legN;i++){
+    const x=-span/2 + span*(legN===1?0.5:i/(legN-1));
+    g.fillStyle=c.fur;
+    roundRect(g,x-legW/2,legTopY,legW,legH,legW*0.45);g.fill();
+    g.fillStyle='#00000030';                    // paw contact shadow
+    g.beginPath();g.ellipse(x,legTopY+legH,legW*0.7,legW*0.3,0,0,7);g.fill();
+  }
+  // body
+  g.fillStyle=c.fur;
+  g.beginPath();g.ellipse(0,bodyCY,bodyW/2,bodyH/2,0,0,7);g.fill();
+  g.fillStyle='#00000022';g.beginPath();g.ellipse(0,bodyCY+bodyH*0.14,bodyW*0.4,bodyH*0.28,0,0,7);g.fill();
+
+  // neck (bridges head to body)
+  g.fillStyle=c.fur;
+  const neckTop=headCY+hr*0.3;
+  roundRect(g,-S*0.095, neckTop, S*0.19, (bodyTopY-neckTop)+S*0.03, S*0.07);g.fill();
+
+  // ears behind head
+  if(c.ears>=1) drawEar(g,-1,c.ear,0,headCY,hr,c.fur);
+  if(c.ears>=2) drawEar(g,+1,c.ear,0,headCY,hr,c.fur);
+
+  // head
+  g.fillStyle=c.fur;
+  g.beginPath();g.ellipse(0,headCY,hr,hr*1.02,0,0,7);g.fill();
+  g.fillStyle='#ffffff10';g.beginPath();g.ellipse(0,headCY+hr*0.42,hr*0.5,hr*0.4,0,0,7);g.fill();
+
+  // eyes
+  const baseR=hr*0.16*c.eyeR;
+  const eyeY=headCY-hr*0.08;
+  const positions=[[-hr*0.4,eyeY],[hr*0.4,eyeY]];
+  if(c.eyeCount===3) positions.push([0,headCY-hr*0.52]);
+  const blinkAmt=c.hollow?1:(c.blink>0?Math.max(0.08,1-c.blink*6):1);
+  for(const [ex,ey] of positions){
+    if(c.hollow){
+      g.fillStyle='#000';g.beginPath();g.ellipse(ex,ey,baseR*1.05,baseR*1.2,0,0,7);g.fill();
+      g.fillStyle='#1a0505';g.beginPath();g.ellipse(ex,ey+baseR*0.2,baseR*0.5,baseR*0.7,0,0,7);g.fill();
+    }else{
+      g.fillStyle='#f4efe2';g.beginPath();g.ellipse(ex,ey,baseR,baseR*1.05*blinkAmt,0,0,7);g.fill();
+      g.fillStyle='#16110d';g.beginPath();g.ellipse(ex,ey,baseR*0.5,baseR*0.55*blinkAmt,0,0,7);g.fill();
+      g.fillStyle='#ffffffcc';g.beginPath();g.arc(ex-baseR*0.22,ey-baseR*0.28,baseR*0.15,0,7);g.fill();
+    }
+  }
+  // nose + mouth
+  g.fillStyle='#2a1c1c';g.beginPath();g.ellipse(0,headCY+hr*0.34,hr*0.1,hr*0.08,0,0,7);g.fill();
+  g.strokeStyle='#2a1c1c';g.lineWidth=hr*0.05;g.lineCap='round';
+  if(c.smile){
+    const mw=hr*0.6,my=headCY+hr*0.52;
+    g.fillStyle='#3a0f0f';g.beginPath();g.moveTo(-mw,my);
+    g.quadraticCurveTo(0,my+hr*0.4,mw,my);g.quadraticCurveTo(0,my+hr*0.1,-mw,my);g.fill();
+    g.fillStyle='#efe9dc';
+    for(let i=0;i<7;i++){const tx=-mw+(mw*2)*(i/6);g.fillRect(tx-hr*0.03,my+hr*0.02,hr*0.06,hr*0.13);}
+  }else{
+    g.beginPath();g.moveTo(-hr*0.12,headCY+hr*0.48);
+    g.quadraticCurveTo(0,headCY+hr*0.54,hr*0.12,headCY+hr*0.48);g.stroke();
+  }
+
+  // held weapon — a paw raised gripping a rusty blade; nothing natural does this
+  if(c.weapon){
+    g.save();
+    g.translate(bodyW*0.42, bodyCY-bodyH*0.16);
+    g.rotate(-0.5);
+    g.fillStyle=c.fur;                                   // raised foreleg + paw
+    roundRect(g,-S*0.03,S*0.02,S*0.06,S*0.17,S*0.028);g.fill();
+    g.beginPath();g.ellipse(0,0,S*0.052,S*0.046,0,0,7);g.fill();
+    g.fillStyle='#4a2f1c';roundRect(g,-S*0.018,-S*0.02,S*0.036,S*0.1,S*0.014);g.fill();
+    g.fillStyle='#6b5535';g.fillRect(-S*0.052,-S*0.028,S*0.104,S*0.018);
+    const bl=S*0.28;                                     // blade
+    const grd=g.createLinearGradient(-S*0.03,0,S*0.03,0);
+    grd.addColorStop(0,'#8b9297');grd.addColorStop(0.5,'#eef2f3');grd.addColorStop(1,'#6f787e');
+    g.fillStyle=grd;
+    g.beginPath();
+    g.moveTo(-S*0.026,-S*0.028);g.lineTo(S*0.026,-S*0.028);
+    g.lineTo(S*0.018,-bl*0.88);g.lineTo(0,-bl);g.lineTo(-S*0.02,-bl*0.88);
+    g.closePath();g.fill();
+    g.strokeStyle='#7a221caa';g.lineWidth=S*0.007;g.lineCap='round';  // dried blood
+    g.beginPath();g.moveTo(-S*0.004,-bl*0.32);g.lineTo(S*0.004,-bl*0.62);g.stroke();
+    g.restore();
+  }
+
+  g.restore();
+}
+
+// ---------- scene ----------
+function render(t){
+  const W=cv.width,H=cv.height;
+  // background: dark woods + lantern glow
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#05070699';ctx.fillRect(0,0,W,H);
+  const flick=0.9+Math.sin(t*0.006)*0.05+Math.random()*0.03;
+  const g=ctx.createRadialGradient(W/2,H*0.46,10,W/2,H*0.5,W*0.62);
+  g.addColorStop(0,`rgba(216,162,74,${0.5*flick})`);
+  g.addColorStop(0.35,`rgba(120,110,70,${0.16*flick})`);
+  g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  if(cur){
+    const a=Math.min(1,appear);
+    const bob=Math.sin(t*0.003)*H*0.008;
+    const yoff=(1-a)*H*0.12;
+    const S=W*0.72;
+    // heavy cast shadow beneath the feet — absent only for the shadowless ones
+    if(cur.shadow){
+      const sy=H*0.5 + S*0.42 + yoff + bob*0.25;
+      const shrink=1 - Math.min(0.18, Math.abs(bob)/(H*0.05));
+      ctx.save();ctx.globalAlpha=a;
+      ctx.fillStyle='rgba(0,0,0,0.36)';
+      ctx.beginPath();ctx.ellipse(W/2,sy,S*0.40*shrink,S*0.10,0,0,7);ctx.fill();
+      ctx.fillStyle='rgba(0,0,0,0.66)';
+      ctx.beginPath();ctx.ellipse(W/2,sy,S*0.26*shrink,S*0.06,0,0,7);ctx.fill();
+      ctx.restore();
+    }
+    drawCreature(ctx,cur,W/2,H*0.5+yoff,S,a,bob);
+  }
+  // vignette
+  const v=ctx.createRadialGradient(W/2,H/2,H*0.3,W/2,H/2,H*0.72);
+  v.addColorStop(0,'#0000');v.addColorStop(1,'#000c');
+  ctx.fillStyle=v;ctx.fillRect(0,0,W,H);
+}
+
+// ---------- loop ----------
+function loop(t){
+  const dt=Math.min(0.05,(t-tPrev)/1000||0); tPrev=t;
+  if(cur){
+    if(appear<1) appear+=dt*1.6;
+    // blink
+    cur.blinkT-=dt;
+    if(cur.blinkT<=0 && cur.blink<=0){cur.blink=0.16;cur.blinkT=1.5+Math.random()*2.5;}
+    if(cur.blink>0) cur.blink-=dt;
+  }
+  if(phase==='gate' && appear>=0.6){
+    timeLeft-=dt;
+    $('timerFill').style.width=Math.max(0,timeLeft/timeMax*100)+'%';
+    if(timeLeft<=0){ decide(null); }
+  }
+  render(t);
+  requestAnimationFrame(loop);
+}
+
+// ---------- flow ----------
+function updateHUD(){
+  $('dayNum').textContent=day;
+  $('progress').textContent=Math.min(idx + (phase==='gate'?1:0), dayLen)+'/'+dayLen;
+  $('money').textContent=money;
+}
+function neutralNote(txt){
+  const v=$('verdict');
+  v.innerHTML=`<span class="tag" style="color:var(--amber)">${txt}</span>`;
+  v.style.opacity=1;
+}
+function startDay(){
+  idx=0; shelter=[]; rejSkin=0; turnedAway=0;
+  dayLen=Math.min(9, 4+day);           // 5,6,7,8,9…
+  $('shelterScreen').classList.add('hidden');
+  updateHUD();
+  nextCreature();
+}
+function nextCreature(){
+  if(idx>=dayLen){ openShelter(); return; }
+  cur=makeCreature(); appear=0; phase='gate';
+  timeMax=Math.max(6, 12 - Math.floor(day/2));
+  timeLeft=timeMax;
+  $('timerFill').style.width='100%';
+  $('verdict').style.opacity=0;
+  $('passBtn').disabled=false; $('rejectBtn').disabled=false;
+  updateHUD();
+}
+function flash(color){
+  const f=$('flash');f.style.background=color;f.style.opacity='.5';
+  setTimeout(()=>f.style.opacity='0',160);
+}
+// no correctness feedback at the gate — just confirm the action
+function decide(playerSaysAnomaly){
+  if(phase!=='gate' || !cur) return;
+  phase='between';
+  $('passBtn').disabled=true; $('rejectBtn').disabled=true;
+  const pass = (playerSaysAnomaly===null) ? true : (playerSaysAnomaly===false);
+  if(pass){
+    shelter.push(Object.assign({}, cur, {expelled:false}));
+    flash('#c99a4d33');
+    neutralNote(playerSaysAnomaly===null ? '망설이는 사이 안으로 들어갔다' : '대피소로 들여보냈다');
+  }else{
+    if(cur.anomaly) rejSkin++; else turnedAway++;
+    flash('#1c312655');
+    neutralNote('문 밖으로 돌려보냈다');
+  }
+  idx++; cur=null;
+  setTimeout(nextCreature, 750);
+}
+
+// ---------- shelter ----------
+function drawInto(canvas,c){
+  const D=canvas.width, g=canvas.getContext('2d');
+  g.clearRect(0,0,D,D);
+  g.fillStyle='#050706';g.fillRect(0,0,D,D);
+  const gl=g.createRadialGradient(D/2,D*0.46,D*0.02,D/2,D/2,D*0.6);
+  gl.addColorStop(0,'rgba(216,162,74,.22)');gl.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=gl;g.fillRect(0,0,D,D);
+  if(c.shadow){g.fillStyle='rgba(0,0,0,0.62)';g.beginPath();g.ellipse(D/2,D*0.86,D*0.29,D*0.06,0,0,7);g.fill();}
+  drawCreature(g,c,D/2,D*0.47,D*0.89,1,0);
+}
+function openShelter(){
+  phase='shelter'; cur=null; updateHUD();
+  const grid=$('shelterGrid'); grid.innerHTML='';
+  if(shelter.length===0){ resolveNight(); return; }
+  $('shelterSub').textContent='Shelter · 대피소';
+  $('shelterTitle').textContent=`${day}일차 · 대피소 점검`;
+  $('shelterMsg').innerHTML='들여보낸 손님들이다. <b>하나씩 눌러 자세히 보고</b>, 밖으로 내보낼지 대피소에 둘지 정하라.';
+  shelter.forEach((c)=>{
+    const cell=document.createElement('div');cell.className='cell';
+    const cvs=document.createElement('canvas');cvs.width=cvs.height=200;drawInto(cvs,c);
+    const mk=document.createElement('div');mk.className='mk eject';mk.textContent='내보냄';
+    const cap=document.createElement('div');cap.className='cap';cap.textContent=c.name;
+    cell.appendChild(cvs);cell.appendChild(mk);cell.appendChild(cap);
+    cell.onclick=()=>openInspect(c,cell);
+    grid.appendChild(cell);
+  });
+  const btn=$('shelterBtn');btn.textContent='밤을 맞는다';btn.onclick=resolveNight;
+  $('shelterScreen').classList.remove('hidden');
+}
+// required cumulative money at each even day (checkpoints every 2 days)
+function quotaFor(evenDay){ const k=evenDay/2; return 40*k + 15*k*(k-1); }
+function resolveNight(){
+  phase='resolve';
+  $('shelterScreen').classList.remove('hidden');
+
+  const skinsInside = shelter.filter(c=>!c.expelled && c.anomaly).length;
+  const skinsOut    = shelter.filter(c=> c.expelled && c.anomaly).length;
+  const innocentsOut= shelter.filter(c=> c.expelled && !c.anomaly).length;
+  const normalsAlive= shelter.filter(c=>!c.expelled && !c.anomaly).length;
+
+  // each skinwalker kills up to 2 normals, but never the last survivor: min(2, remaining-1)
+  let rem=normalsAlive, killed=0;
+  for(let i=0;i<skinsInside;i++){ const k=Math.max(0,Math.min(2,rem-1)); killed+=k; rem-=k; }
+  const survivors=rem;
+
+  // mark which normals were killed (first ones in order)
+  let markLeft=killed;
+  shelter.forEach(c=>{ c.killed=false;
+    if(!c.expelled && !c.anomaly && markLeft>0){ c.killed=true; markLeft--; } });
+
+  const earned=survivors*10;
+  money+=earned; savedTotal+=survivors;
+
+  // reveal
+  const grid=$('shelterGrid');
+  Array.from(grid.children).forEach((cell,i)=>{
+    const c=shelter[i]; const isSkin=!!c.anomaly;
+    cell.classList.add('reveal');cell.classList.remove('out');cell.onclick=null;
+    const old=cell.querySelector('.mk');if(old)old.remove();
+    const mk=document.createElement('div');mk.className='mk res';
+    if(isSkin&&!c.expelled){mk.classList.add('res-bad');mk.innerHTML='스킨워커<br>침입!';}
+    else if(isSkin&&c.expelled){mk.classList.add('res-good');mk.innerHTML='스킨워커<br>격퇴';}
+    else if(!isSkin&&c.expelled){mk.classList.add('res-warn');mk.innerHTML='정상<br>내쫓김';}
+    else if(!isSkin&&c.killed){mk.classList.add('res-bad');mk.innerHTML='일반 동물<br>습격당함';}
+    else {mk.classList.add('res-good');mk.innerHTML='안전<br>+10원';}
+    cell.insertBefore(mk, cell.querySelector('.cap'));
+  });
+
+  $('shelterSub').textContent='Nightfall · 밤';
+  $('shelterTitle').textContent = killed>0 ? '피비린내 나는 밤이었다'
+    : (skinsInside>0 ? '스킨워커가 도사렸다' : '조용한 밤이었다');
+  let msg='';
+  if(skinsInside>0 && killed>0) msg+=`숨어든 스킨워커 <b>${skinsInside}</b>마리가 일반 동물 <b>${killed}</b>마리를 물어 죽였다. `;
+  else if(skinsInside>0)        msg+=`스킨워커 <b>${skinsInside}</b>마리가 도사렸지만 남은 동물이 적어 건드리지 못했다. `;
+  if(skinsOut>0)  msg+=`스킨워커 <b>${skinsOut}</b>마리를 도로 내보냈다. `;
+  msg+=`살아남은 동물 <b>${survivors}</b>마리 — <b style="color:var(--amber)">+${earned}원</b>. `;
+  if(innocentsOut>0) msg+=`애꿎은 동물 <b>${innocentsOut}</b>마리를 내쫓았다. `;
+
+  const btn=$('shelterBtn');
+  let failed=false;
+  if(day%2===0){
+    const need=quotaFor(day);
+    if(money>=need) msg+=`<br><span style="color:var(--pass-lit)">■ ${day}일차 상납 — 목표 ${need}원 / 보유 ${money}원 · 통과.</span>`;
+    else { msg+=`<br><span style="color:var(--blood-lit)">■ ${day}일차 상납 — 목표 ${need}원 / 보유 ${money}원 · 미달.</span>`; failed=true; }
+  } else {
+    const need=quotaFor(day+1);
+    msg+=`<br><span style="color:var(--dim)">다음 상납 — ${day+1}일차까지 ${need}원 필요 (보유 ${money}원).</span>`;
+  }
+  $('shelterMsg').innerHTML=msg;
+  updateHUD();
+
+  if(failed){ btn.textContent='…'; btn.onclick=null; setTimeout(()=>gameOver('quota'),1000); }
+  else { btn.textContent='다음 밤으로'; btn.onclick=()=>{ day++; startDay(); }; }
+}
+function openInspect(c,cell){
+  if(phase!=='shelter')return;
+  inspecting={c,cell};
+  drawInto($('inspectCanvas'),c);
+  $('inspectName').textContent=c.name+' — 자세히';
+  const s=$('inspectStatus');
+  if(c.expelled){s.textContent='현재 상태 · 밖으로 내보낼 예정';s.style.color='#f0b3ad';}
+  else{s.textContent='현재 상태 · 대피소에 둠';s.style.color='var(--dim)';}
+  $('inspectScreen').classList.remove('hidden');
+}
+function setExpel(v){
+  if(!inspecting)return;
+  inspecting.c.expelled=v;
+  inspecting.cell.classList.toggle('out',v);
+  closeInspect();
+}
+function closeInspect(){ $('inspectScreen').classList.add('hidden'); inspecting=null; }
+
+function gameOver(reason){
+  phase='over';
+  $('shelterScreen').classList.add('hidden');
+  $('overTitle').textContent = reason==='quota' ? '상납금을 채우지 못했다' : '초소의 불이 꺼졌다';
+  $('overText').innerHTML=`<b>${day}</b>일차, 보유금 <b>${money}</b>원에서 멈췄다. 그동안 <b>${savedTotal}</b>마리를 지켜냈다.` +
+    (savedTotal>=25?' 숲은 그를 기억할 것이다.':savedTotal>=10?' 적지 않은 목숨이었다.':'');
+  $('overScreen').classList.remove('hidden');
+}
+function startGame(){
+  day=1;money=0;savedTotal=0;
+  $('startScreen').classList.add('hidden');
+  $('overScreen').classList.add('hidden');
+  $('shelterScreen').classList.add('hidden');
+  startDay();
+}
+
+// ---------- reference gallery ----------
+function buildRef(){
+  const grid=$('refGrid');grid.innerHTML='';
+  for(const k of KEYS){
+    const fig=document.createElement('figure');
+    const c=document.createElement('canvas');c.width=c.height=200;
+    const g=c.getContext('2d');
+    g.fillStyle='#050706';g.fillRect(0,0,200,200);
+    const gl=g.createRadialGradient(100,95,5,100,100,120);
+    gl.addColorStop(0,'rgba(216,162,74,.28)');gl.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=gl;g.fillRect(0,0,200,200);
+    const sp=SPECIES[k];
+    drawCreature(g,{species:k,name:sp.name,fur:sp.fur,ear:sp.ear,eyeR:1,eyeCount:2,
+      hollow:false,ears:2,legs:4,neck:1,smile:false,anomaly:null,blink:0,blinkT:9},100,100,200,1,0);
+    const cap=document.createElement('figcaption');cap.textContent=sp.name;
+    fig.appendChild(c);fig.appendChild(cap);grid.appendChild(fig);
+  }
+}
+
+// ---------- events ----------
+$('startBtn').onclick=startGame;
+$('againBtn').onclick=startGame;
+$('passBtn').onclick=()=>decide(false);
+$('rejectBtn').onclick=()=>decide(true);
+$('refBtn').onclick=()=>{buildRef();$('refScreen').classList.remove('hidden');};
+$('refClose').onclick=()=>$('refScreen').classList.add('hidden');
+$('keepBtn').onclick=()=>setExpel(false);
+$('expelBtn').onclick=()=>setExpel(true);
+$('inspectClose').onclick=closeInspect;
+$('inspectScreen').onclick=(e)=>{ if(e.target===$('inspectScreen')) closeInspect(); };
+document.addEventListener('keydown',e=>{
+  if(phase!=='gate')return;
+  if(e.key==='ArrowLeft'||e.key==='a')decide(false);
+  if(e.key==='ArrowRight'||e.key==='d')decide(true);
+});
+
+updateHUD();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
