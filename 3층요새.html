@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>3층 요새 방어전</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { overscroll-behavior:none; }
+  body {
+    background:#0d0b14;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:100vh; font-family:'Segoe UI', 'Malgun Gothic', sans-serif;
+    color:#e8e2d0; user-select:none; -webkit-user-select:none; touch-action:manipulation;
+  }
+  h1 { font-size:20px; letter-spacing:6px; margin:10px 0 6px; color:#f0c34e; text-shadow:0 0 12px rgba(240,195,78,.4); }
+  #wrap { position:relative; width:min(960px, 100vw - 12px); }
+  canvas { display:block; width:100%; height:auto; border:3px solid #3a3350; border-radius:6px; background:#141021;
+    box-shadow:0 0 40px rgba(90,70,160,.25); touch-action:none; }
+  #hud { display:flex; gap:24px; margin-top:8px; font-size:14px; color:#a99fc4; flex-wrap:wrap; justify-content:center; }
+  #hud b { color:#f0c34e; }
+  #overlay {
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(10,8,18,.82); border-radius:6px; text-align:center; gap:14px;
+  }
+  #overlay h2 { font-size:34px; color:#f0c34e; letter-spacing:4px; }
+  #overlay p { font-size:14px; line-height:1.9; color:#c7bfe0; }
+  #overlay button {
+    padding:12px 40px; font-size:17px; letter-spacing:3px; cursor:pointer;
+    background:#f0c34e; border:none; border-radius:4px; color:#1a1428; font-weight:bold;
+  }
+  #overlay button:hover { background:#ffd76b; }
+  .hidden { display:none !important; }
+
+  /* ----- 직업 선택 ----- */
+  #classPick { display:flex; gap:16px; }
+  .classCard {
+    width:170px; padding:14px 10px; border-radius:10px; cursor:pointer;
+    background:rgba(60,52,95,.5); border:2px solid #4d4370;
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    transition:transform .1s;
+  }
+  .classCard:hover { transform:translateY(-3px); }
+  .classCard.selected { border-color:#f0c34e; background:rgba(240,195,78,.15); box-shadow:0 0 16px rgba(240,195,78,.25); }
+  .classCard .ci { font-size:34px; }
+  .classCard b { font-size:16px; color:#f0c34e; letter-spacing:2px; }
+  .classCard span { font-size:11px; line-height:1.7; color:#c7bfe0; text-align:center; }
+
+  /* ----- 모바일 터치 컨트롤 ----- */
+  #touchUI {
+    display:none;
+    width:min(960px, 100vw - 12px);
+    margin-top:10px;
+    justify-content:space-between; align-items:center;
+    gap:10px;
+  }
+  .padGroup { display:flex; gap:10px; align-items:center; }
+  .padCol { display:flex; flex-direction:column; gap:10px; }
+  .tbtn {
+    width:64px; height:64px; border-radius:16px;
+    background:rgba(90,80,140,.35); border:2px solid #4d4370;
+    color:#e8e2d0; font-size:26px; font-weight:bold;
+    display:flex; align-items:center; justify-content:center;
+    touch-action:none; -webkit-tap-highlight-color:transparent;
+  }
+  .tbtn:active, .tbtn.pressed { background:rgba(240,195,78,.45); border-color:#f0c34e; }
+  #btnFire {
+    width:88px; height:88px; border-radius:50%;
+    background:rgba(224,85,85,.4); border:2px solid #e05555;
+    font-size:18px; letter-spacing:2px;
+  }
+  #btnFire:active, #btnFire.pressed { background:rgba(255,120,120,.6); border-color:#ff8a8a; }
+  @media (pointer:coarse) {
+    #touchUI { display:flex; }
+  }
+  @media (max-width:600px) {
+    h1 { font-size:15px; letter-spacing:3px; margin:6px 0 4px; }
+    #hud { gap:14px; font-size:12px; }
+    .tbtn { width:54px; height:54px; font-size:22px; }
+    #btnFire { width:76px; height:76px; font-size:15px; }
+    #overlay h2 { font-size:24px; }
+    #overlay p { font-size:12px; }
+  }
+</style>
+</head>
+<body>
+<h1>3층 요새 방어전</h1>
+<div id="wrap">
+  <canvas id="game" width="960" height="600"></canvas>
+  <div id="overlay">
+    <h2>3층 요새 방어전</h2>
+    <div id="classPick">
+      <div class="classCard selected" data-class="engineer">
+        <div class="ci">🔧</div><b>엔지니어</b>
+        <span>자동 터렛 설치<br>같은 층의 적을 자동 사격<br>최대 2기 · 일정 시간 유지</span>
+      </div>
+      <div class="classCard" data-class="medic">
+        <div class="ci">✚</div><b>메딕</b>
+        <span>자가 치유 (+2 체력)<br>위기에서 버티는 생존형<br>재사용 대기시간 있음</span>
+      </div>
+    </div>
+    <p id="howto">
+      ← → : 이동 &nbsp;&nbsp; ↑ ↓ : 층 이동 &nbsp;&nbsp; 스페이스 : 발사<br>
+      W / S : 위·아래 조준 (이동과 함께 누르면 대각선 사격!) &nbsp;&nbsp; <b style="color:#f0c34e">E : 직업 스킬</b><br>
+      탄환은 층을 관통하므로 다른 층의 적도 맞힐 수 있습니다.<br>
+      3개 층을 오르내리며 중앙 코어를 지켜내세요!
+    </p>
+    <button id="startBtn">게임 시작</button>
+  </div>
+</div>
+<div id="hud">
+  <span>점수 <b id="score">0</b></span>
+  <span>웨이브 <b id="wave">1</b></span>
+  <span>코어 <b id="core">100</b></span>
+  <span>체력 <b id="hp">5</b></span>
+</div>
+<div id="touchUI">
+  <div class="padGroup">
+    <button class="tbtn" id="btnLeft">◀</button>
+    <button class="tbtn" id="btnRight">▶</button>
+  </div>
+  <div class="padCol">
+    <button class="tbtn" id="btnUp">▲</button>
+    <button class="tbtn" id="btnDown">▼</button>
+  </div>
+  <button class="tbtn" id="btnSkill" style="font-size:15px">스킬</button>
+  <button class="tbtn" id="btnFire">발사</button>
+</div>
+
+<script>
+const cvs = document.getElementById('game');
+const ctx = cvs.getContext('2d');
+const W = cvs.width, H = cvs.height;
+
+// ----- 층 구성 (3층: 위=2, 중간=1, 아래=0 층 인덱스) -----
+const FLOOR_COUNT = 3;
+const FLOOR_H = 176;          // 각 층 높이
+const TOP_PAD = H - FLOOR_COUNT * FLOOR_H - 24; // 상단 여백
+function floorY(i){ return H - 24 - i * FLOOR_H; } // 해당 층 바닥 y
+
+// ----- 상태 -----
+let running = false, gameOver = false;
+let score = 0, wave = 1, coreHP = 100;
+let keys = {};
+let bullets = [], enemyBullets = [], enemies = [], particles = [], pickups = [];
+let spawnTimer = 0, waveTimer = 0, enemiesToSpawn = 0, shake = 0;
+
+// ----- 직업 시스템 -----
+let playerClass = 'engineer';
+let turrets = [], skillCool = 0;
+const SKILL_CD = 720;          // 12초
+const TURRET_LIFE = 1200;      // 20초
+const CLASS_LABEL = { engineer:'터렛', medic:'치유' };
+document.querySelectorAll('.classCard').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.classCard').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    playerClass = card.dataset.class;
+    updateSkillBtn();
+  });
+});
+function useSkill(){
+  if(!running || skillCool > 0) return;
+  if(playerClass === 'engineer'){
+    if(turrets.length >= 2) turrets.shift(); // 오래된 터렛 제거
+    turrets.push({ x: player.x, floor: player.floor, life: TURRET_LIFE, cool: 15, dir: player.dir });
+    burst(player.x, floorY(player.floor)-20, '#7dd3fc', 10);
+    skillCool = SKILL_CD;
+  } else {
+    if(player.hp >= player.maxHp) return; // 체력이 가득 차면 낭비 방지
+    player.hp = Math.min(player.maxHp, player.hp + 2);
+    burst(player.x, floorY(player.floor)-30, '#8ef0c0', 12);
+    skillCool = SKILL_CD;
+  }
+}
+function updateSkillBtn(){
+  const el = document.getElementById('btnSkill');
+  el.textContent = skillCool > 0 ? Math.ceil(skillCool/60) + 's' : CLASS_LABEL[playerClass];
+}
+
+const player = {
+  x: W/2, floor: 0, w: 26, h: 40,
+  vx: 0, speed: 4.6, dir: 1, hp: 7, maxHp: 7,
+  cool: 0, fireRate: 10, inv: 0, hopT: 0, hopFrom: 0,
+  triple: 0, rapid: 0,
+  aimX: 1, aimY: 0, touchAim: null, touchTarget: null
+};
+
+const CORE = { x: W/2, w: 46 }; // 각 층 중앙을 관통하는 코어 기둥
+
+// ----- 입력 -----
+function floorUp(){
+  if(running && player.floor < FLOOR_COUNT-1 && player.hopT<=0){
+    player.hopFrom = player.floor; player.floor++; player.hopT = 1;
+  }
+}
+function floorDown(){
+  if(running && player.floor > 0 && player.hopT<=0){
+    player.hopFrom = player.floor; player.floor--; player.hopT = 1;
+  }
+}
+addEventListener('keydown', e => {
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+  if(keys[e.key]) return;
+  keys[e.key] = true;
+  if(e.key === 'ArrowUp') floorUp();
+  if(e.key === 'ArrowDown') floorDown();
+  if(e.key === 'e' || e.key === 'E' || e.key === 'ㄷ') useSkill();
+});
+addEventListener('keyup', e => keys[e.key] = false);
+
+// ----- 터치 컨트롤 -----
+const isTouch = matchMedia('(pointer:coarse)').matches;
+function bindHold(id, key){
+  const el = document.getElementById(id);
+  const press = e => { e.preventDefault(); keys[key] = true; el.classList.add('pressed'); };
+  const release = e => { e.preventDefault(); keys[key] = false; el.classList.remove('pressed'); };
+  el.addEventListener('touchstart', press, { passive:false });
+  el.addEventListener('touchend', release, { passive:false });
+  el.addEventListener('touchcancel', release, { passive:false });
+  el.addEventListener('mousedown', press);
+  el.addEventListener('mouseup', release);
+  el.addEventListener('mouseleave', release);
+}
+function bindTap(id, fn){
+  const el = document.getElementById(id);
+  el.addEventListener('touchstart', e => { e.preventDefault(); el.classList.add('pressed'); fn(); }, { passive:false });
+  el.addEventListener('touchend', e => { e.preventDefault(); el.classList.remove('pressed'); }, { passive:false });
+  el.addEventListener('mousedown', e => { e.preventDefault(); fn(); });
+}
+bindHold('btnLeft', 'ArrowLeft');
+bindHold('btnRight', 'ArrowRight');
+// 발사 버튼: 누르면 발사, 누른 채 드래그하면 그 방향으로 조준 (8방향 스냅)
+(function(){
+  const el = document.getElementById('btnFire');
+  let sx = 0, sy = 0, tid = null;
+  function findTouch(list){
+    for(const t of list) if(t.identifier === tid) return t;
+    return null;
+  }
+  el.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if(tid !== null) return; // 이미 발사 중이면 무시
+    const t = e.changedTouches[0];
+    tid = t.identifier; sx = t.clientX; sy = t.clientY;
+    keys[' '] = true; player.touchAim = null;
+    el.classList.add('pressed');
+  }, { passive:false });
+  el.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const t = findTouch(e.changedTouches);
+    if(!t) return; // 다른 손가락(이동 버튼 등)의 움직임은 무시
+    const dx = t.clientX - sx, dy = t.clientY - sy;
+    if(Math.hypot(dx, dy) > 20){
+      // 8방향 스냅: 흔들리는 손가락에도 조준이 안정적
+      const a = Math.round(Math.atan2(dy, dx) / (Math.PI/4)) * (Math.PI/4);
+      player.touchAim = { x: Math.cos(a), y: Math.sin(a) };
+    } else {
+      player.touchAim = null;
+    }
+  }, { passive:false });
+  const end = e => {
+    e.preventDefault();
+    if(!findTouch(e.changedTouches)) return; // 다른 손가락이 떨어진 경우 무시
+    tid = null; keys[' '] = false; player.touchAim = null;
+    el.classList.remove('pressed');
+  };
+  el.addEventListener('touchend', end, { passive:false });
+  el.addEventListener('touchcancel', end, { passive:false });
+  el.addEventListener('mousedown', e => { e.preventDefault(); keys[' '] = true; });
+  el.addEventListener('mouseup', () => { keys[' '] = false; });
+  el.addEventListener('mouseleave', () => { keys[' '] = false; });
+})();
+bindTap('btnUp', floorUp);
+bindTap('btnDown', floorDown);
+bindTap('btnSkill', useSkill);
+
+// 게임 화면 터치: 손가락 위치를 향해 조준하고 자동 발사
+let aimId = null;
+function canvasPos(t){
+  const r = cvs.getBoundingClientRect();
+  return {
+    x: (t.clientX - r.left) * (W / r.width),
+    y: (t.clientY - r.top)  * (H / r.height)
+  };
+}
+cvs.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if(aimId !== null) return;
+  const t = e.changedTouches[0];
+  aimId = t.identifier;
+  player.touchTarget = canvasPos(t);
+}, { passive:false });
+cvs.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for(const t of e.changedTouches){
+    if(t.identifier === aimId){ player.touchTarget = canvasPos(t); break; }
+  }
+}, { passive:false });
+function aimEnd(e){
+  for(const t of e.changedTouches){
+    if(t.identifier === aimId){ aimId = null; player.touchTarget = null; }
+  }
+}
+cvs.addEventListener('touchend', aimEnd);
+cvs.addEventListener('touchcancel', aimEnd);
+
+// ----- 게임 시작 -----
+if(isTouch){
+  document.getElementById('howto').innerHTML =
+    '<b style="color:#f0c34e">화면을 터치하면 손가락 방향으로 자동 발사!</b> 누른 채 움직여 조준하세요.<br>' +
+    '◀ ▶ : 이동 &nbsp;&nbsp; ▲ ▼ : 층 이동 &nbsp;&nbsp; 스킬 버튼 : 직업 능력 사용<br>' +
+    '탄환은 층을 관통하므로 다른 층의 적도 맞힐 수 있습니다.<br>' +
+    '위에서 직업을 고른 뒤 시작하세요!';
+}
+document.getElementById('startBtn').onclick = () => {
+  document.getElementById('overlay').classList.add('hidden');
+  reset(); running = true;
+};
+function reset(){
+  score = 0; wave = 1; coreHP = 100; gameOver = false;
+  bullets = []; enemyBullets = []; enemies = []; particles = []; pickups = [];
+  player.x = W/2 - 120; player.floor = 0; player.hp = player.maxHp;
+  player.inv = 0; player.triple = 0; player.rapid = 0; player.hopT = 0;
+  player.touchAim = null; player.touchTarget = null;
+  turrets = []; skillCool = 0; updateSkillBtn();
+  startWave();
+}
+function startWave(){
+  enemiesToSpawn = 4 + wave * 2;
+  spawnTimer = 60;
+}
+
+// ----- 적 생성 -----
+function spawnEnemy(){
+  const side = Math.random() < .5 ? -1 : 1;
+  const fl = Math.floor(Math.random() * FLOOR_COUNT);
+  const tough = Math.random() < Math.min(.06 + wave*.03, .35);
+  const shooter = !tough && Math.random() < .25;
+  enemies.push({
+    x: side < 0 ? -30 : W + 30, floor: fl,
+    w: tough ? 34 : 24, h: tough ? 46 : 36,
+    vx: (side<0?1:-1) * (tough ? .5 : .8 + Math.random()*.4 + wave*.03),
+    hp: tough ? 4 + Math.floor(wave/2) : 1 + Math.floor(wave/3),
+    type: tough ? 'tank' : (shooter ? 'gunner' : 'runner'),
+    cool: 60 + Math.random()*60, hitT: 0
+  });
+}
+
+// ----- 발사 -----
+function shoot(){
+  const rate = player.rapid > 0 ? 6 : player.fireRate;
+  if(player.cool > 0) return;
+  player.cool = rate;
+  const y = floorY(player.floor) - 26 - hopOffset();
+  const len = Math.hypot(player.aimX, player.aimY) || 1;
+  const nx = player.aimX/len, ny = player.aimY/len;
+  const spd = 11;
+  const ox = player.x + nx*20, oy = y + ny*20;
+  bullets.push({ x:ox, y:oy, vx:nx*spd, vy:ny*spd });
+  if(player.triple > 0){
+    const px = -ny, pv = nx; // 조준 방향에 수직인 퍼짐
+    bullets.push({ x:ox, y:oy, vx:nx*spd + px*1.8, vy:ny*spd + pv*1.8 });
+    bullets.push({ x:ox, y:oy, vx:nx*spd - px*1.8, vy:ny*spd - pv*1.8 });
+  }
+  particles.push(muzzle(ox, oy, nx || player.dir));
+}
+function muzzle(x,y,d){ return { x, y, vx:d*2, vy:0, life:5, c:'#ffe08a', r:5, type:'flash' }; }
+function hopOffset(){
+  if(player.hopT <= 0) return 0;
+  return Math.sin(player.hopT * Math.PI) * 30;
+}
+
+// ----- 업데이트 -----
+function update(){
+  if(!running) return;
+
+  // 플레이어
+  player.vx = 0;
+  if(keys['ArrowLeft'])  { player.vx = -player.speed; player.dir = -1; }
+  if(keys['ArrowRight']) { player.vx =  player.speed; player.dir =  1; }
+  player.x = Math.max(20, Math.min(W-20, player.x + player.vx));
+
+  // 조준 방향 계산
+  let ay = 0;
+  if(keys['w']||keys['W']||keys['ㅈ']) ay = -1;
+  if(keys['s']||keys['S']||keys['ㄴ']) ay =  1;
+  if(player.touchTarget){
+    // 손가락 위치를 향해 조준
+    const gy = floorY(player.floor) - 26 - hopOffset();
+    const dx = player.touchTarget.x - player.x;
+    const dy = player.touchTarget.y - gy;
+    const L = Math.hypot(dx, dy) || 1;
+    player.aimX = dx / L; player.aimY = dy / L;
+    if(player.aimX < -.3) player.dir = -1;
+    else if(player.aimX > .3) player.dir = 1;
+  } else if(player.touchAim){
+    const L = Math.hypot(player.touchAim.x, player.touchAim.y) || 1;
+    player.aimX = player.touchAim.x / L;
+    player.aimY = player.touchAim.y / L;
+    if(player.aimX < -.3) player.dir = -1;
+    else if(player.aimX > .3) player.dir = 1;
+  } else {
+    const moving = keys['ArrowLeft'] || keys['ArrowRight'];
+    player.aimX = (ay !== 0 && !moving) ? 0 : player.dir; // 수직 조준 허용
+    player.aimY = ay;
+  }
+
+  if(keys[' '] || player.touchTarget) shoot();
+  if(player.cool > 0) player.cool--;
+  if(player.inv > 0) player.inv--;
+  if(player.triple > 0) player.triple--;
+  if(player.rapid > 0) player.rapid--;
+  if(player.hopT > 0) player.hopT -= .12;
+
+  // 스킬 쿨다운
+  if(skillCool > 0){
+    skillCool--;
+    if(skillCool % 30 === 0 || skillCool === 0) updateSkillBtn();
+  }
+
+  // 터렛: 같은 층의 가장 가까운 적을 자동 사격
+  for(const t of turrets){
+    t.life--;
+    if(t.cool > 0) t.cool--;
+    let best = null, bd = 1e9;
+    for(const e of enemies){
+      if(e.floor !== t.floor) continue;
+      const d = Math.abs(e.x - t.x);
+      if(d < bd){ bd = d; best = e; }
+    }
+    if(best){
+      t.dir = best.x > t.x ? 1 : -1;
+      if(t.cool <= 0 && bd < 440){
+        t.cool = 34;
+        bullets.push({ x: t.x + t.dir*16, y: floorY(t.floor) - 24, vx: t.dir*9, vy: 0 });
+        particles.push(muzzle(t.x + t.dir*18, floorY(t.floor) - 24, t.dir));
+      }
+    }
+  }
+  turrets = turrets.filter(t => t.life > 0);
+
+  // 웨이브 / 스폰
+  if(enemiesToSpawn > 0){
+    spawnTimer--;
+    if(spawnTimer <= 0){
+      spawnEnemy(); enemiesToSpawn--;
+      spawnTimer = Math.max(35, 75 - wave*3) + Math.random()*25;
+    }
+  } else if(enemies.length === 0){
+    waveTimer++;
+    if(waveTimer > 90){
+      waveTimer = 0; wave++;
+      document.getElementById('wave').textContent = wave;
+      startWave();
+    }
+  }
+
+  // 적
+  for(const e of enemies){
+    if(e.hitT > 0) e.hitT--;
+    const coreEdge = CORE.x + (e.vx > 0 ? -CORE.w/2 - e.w/2 : CORE.w/2 + e.w/2);
+    const reached = (e.vx > 0 && e.x >= coreEdge) || (e.vx < 0 && e.x <= coreEdge);
+    if(e.type === 'gunner'){
+      // 사거리 안이면 멈추고 사격
+      const inRange = Math.abs(e.x - CORE.x) < 320 && e.x > 30 && e.x < W-30;
+      if(!inRange && !reached) e.x += e.vx;
+      e.cool--;
+      if(inRange && e.cool <= 0){
+        e.cool = 140 + Math.random()*70;
+        const y = floorY(e.floor) - e.h/2;
+        const d = e.vx > 0 ? 1 : -1;
+        enemyBullets.push({ x:e.x + d*14, y, vx:d*4.2, vy:0 });
+      }
+    } else {
+      if(!reached) e.x += e.vx;
+      else {
+        // 코어 공격
+        e.cool--;
+        if(e.cool <= 0){
+          e.cool = 70;
+          coreHP -= (e.type==='tank'?3:1);
+          shake = 8;
+          burst(CORE.x + (e.vx>0?-CORE.w/2:CORE.w/2), floorY(e.floor)-30, '#ff7043', 6);
+        }
+      }
+    }
+  }
+
+  // 플레이어 탄
+  for(const b of bullets){ b.x += b.vx; b.y += b.vy; }
+  bullets = bullets.filter(b => b.x > -20 && b.x < W+20 && b.y > -20 && b.y < H+20);
+  // 적 탄
+  for(const b of enemyBullets){ b.x += b.vx; }
+  enemyBullets = enemyBullets.filter(b => b.x > -20 && b.x < W+20);
+
+  // 탄 → 적 충돌
+  for(const b of bullets){
+    for(const e of enemies){
+      const ey = floorY(e.floor) - e.h/2;
+      if(Math.abs(b.x - e.x) < e.w/2 + 4 && Math.abs(b.y - ey) < e.h/2 + 4){
+        e.hp--; e.hitT = 6; b.dead = true;
+        burst(b.x, b.y, '#ffd76b', 3);
+        if(e.hp <= 0){
+          e.dead = true;
+          score += e.type==='tank'?50 : e.type==='gunner'?30 : 15;
+          burst(e.x, ey, e.type==='tank' ? '#ff8a65' : '#b39ddb', 12);
+          if(Math.random() < .22) dropPickup(e.x, e.floor);
+        }
+        break;
+      }
+    }
+  }
+  bullets = bullets.filter(b => !b.dead);
+  enemies = enemies.filter(e => !e.dead);
+
+  // 적 탄 / 적 몸통 → 플레이어
+  const py = floorY(player.floor) - player.h/2 - hopOffset();
+  if(player.inv <= 0 && player.hopT <= 0){
+    for(const b of enemyBullets){
+      if(Math.abs(b.x - player.x) < player.w/2 + 4 && Math.abs(b.y - py) < player.h/2 + 4){
+        b.dead = true; hurtPlayer();
+      }
+    }
+    for(const e of enemies){
+      if(e.floor === player.floor && Math.abs(e.x - player.x) < (e.w + player.w)/2 - 4){
+        hurtPlayer(); break;
+      }
+    }
+  }
+  enemyBullets = enemyBullets.filter(b => !b.dead);
+
+  // 아이템
+  for(const p of pickups){
+    p.t++;
+    if(p.floor === player.floor && Math.abs(p.x - player.x) < 26){
+      p.dead = true;
+      if(p.kind === 'hp'){ player.hp = Math.min(player.maxHp, player.hp + 1); }
+      if(p.kind === 'triple'){ player.triple = 600; }
+      if(p.kind === 'rapid'){ player.rapid = 600; }
+      if(p.kind === 'core'){ coreHP = Math.min(100, coreHP + 10); }
+      burst(p.x, floorY(p.floor)-20, '#8ef0c0', 8);
+    }
+  }
+  pickups = pickups.filter(p => !p.dead && p.t < 720);
+
+  // 파티클
+  for(const p of particles){ p.x+=p.vx; p.y+=p.vy; p.vy+=.15; p.life--; }
+  particles = particles.filter(p => p.life > 0);
+
+  if(shake > 0) shake--;
+
+  // HUD
+  document.getElementById('score').textContent = score;
+  document.getElementById('core').textContent = Math.max(0, coreHP);
+  document.getElementById('hp').textContent = player.hp;
+
+  if(coreHP <= 0 || player.hp <= 0) endGame();
+}
+function hurtPlayer(){
+  player.hp--; player.inv = 100; shake = 6;
+  burst(player.x, floorY(player.floor)-30, '#ff5252', 8);
+}
+function dropPickup(x, fl){
+  const kinds = ['hp','triple','rapid','core'];
+  pickups.push({ x, floor: fl, kind: kinds[Math.floor(Math.random()*kinds.length)], t:0 });
+}
+function burst(x, y, c, n){
+  for(let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, s = 1+Math.random()*3;
+    particles.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s-1, life:18+Math.random()*12, c, r:2+Math.random()*2 });
+  }
+}
+function endGame(){
+  running = false; gameOver = true;
+  const ov = document.getElementById('overlay');
+  ov.classList.remove('hidden');
+  ov.querySelector('h2').textContent = coreHP <= 0 ? '코어 파괴됨' : '전사...';
+  ov.querySelector('p').innerHTML = `최종 점수 <b style="color:#f0c34e">${score}</b> &nbsp;·&nbsp; 도달 웨이브 <b style="color:#f0c34e">${wave}</b>`;
+  ov.querySelector('button').textContent = '다시 도전';
+}
+
+// ----- 그리기 -----
+function draw(){
+  ctx.save();
+  if(shake > 0) ctx.translate((Math.random()-.5)*shake, (Math.random()-.5)*shake);
+
+  // 배경 (밤하늘 + 별)
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#1b1533'); g.addColorStop(1,'#120e1f');
+  ctx.fillStyle = g; ctx.fillRect(-10,-10,W+20,H+20);
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  for(let i=0;i<40;i++){
+    const sx = (i*137)%W, sy = (i*89)%TOP_PAD;
+    ctx.fillRect(sx, sy, ((i%3)===0)?2:1, ((i%3)===0)?2:1);
+  }
+
+  // 각 층
+  for(let i=0;i<FLOOR_COUNT;i++){
+    const fy = floorY(i);
+    // 실내 배경
+    ctx.fillStyle = i%2===0 ? '#221b38' : '#251e3e';
+    ctx.fillRect(0, fy - FLOOR_H, W, FLOOR_H);
+    // 창문 불빛
+    ctx.fillStyle = 'rgba(240,195,78,.06)';
+    for(let wx=60; wx<W; wx+=180){
+      ctx.fillRect(wx, fy - FLOOR_H + 30, 50, 60);
+    }
+    // 바닥 슬래브
+    ctx.fillStyle = '#3a3155';
+    ctx.fillRect(0, fy, W, 14);
+    ctx.fillStyle = '#4d4370';
+    ctx.fillRect(0, fy, W, 4);
+    // 층 라벨
+    ctx.fillStyle = 'rgba(200,190,230,.25)';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText(`${i+1}F`, 12, fy - FLOOR_H + 22);
+  }
+  // 최하단 지반
+  ctx.fillStyle = '#2a2342';
+  ctx.fillRect(0, H-24, W, 24);
+
+  // 코어 기둥
+  const coreRatio = Math.max(0, coreHP)/100;
+  ctx.fillStyle = '#332a52';
+  ctx.fillRect(CORE.x - CORE.w/2, TOP_PAD, CORE.w, H - 24 - TOP_PAD);
+  const pulse = .5 + .5*Math.sin(Date.now()/300);
+  ctx.fillStyle = `rgba(${Math.round(120+130*(1-coreRatio))}, ${Math.round(220*coreRatio+40)}, 200, ${.35+.25*pulse})`;
+  ctx.fillRect(CORE.x - 10, TOP_PAD, 20, H - 24 - TOP_PAD);
+  // 코어 게이지
+  ctx.fillStyle = '#171226';
+  ctx.fillRect(CORE.x - 30, TOP_PAD - 16, 60, 8);
+  ctx.fillStyle = coreRatio > .35 ? '#6ee7b7' : '#ff7043';
+  ctx.fillRect(CORE.x - 30, TOP_PAD - 16, 60*coreRatio, 8);
+
+  // 아이템
+  for(const p of pickups){
+    const y = floorY(p.floor) - 18 + Math.sin(p.t/12)*4;
+    const blink = p.t > 600 && Math.floor(p.t/8)%2===0;
+    if(blink) continue;
+    const colors = { hp:'#ff6b81', triple:'#ffd76b', rapid:'#7dd3fc', core:'#6ee7b7' };
+    const labels = { hp:'♥', triple:'3', rapid:'R', core:'C' };
+    ctx.fillStyle = colors[p.kind];
+    ctx.beginPath(); ctx.arc(p.x, y, 11, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a1428'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(labels[p.kind], p.x, y+4); ctx.textAlign = 'left';
+  }
+
+  // 적
+  for(const e of enemies){
+    const ey = floorY(e.floor);
+    const flash = e.hitT > 0;
+    ctx.fillStyle = flash ? '#ffffff' :
+      e.type==='tank' ? '#c62828' : e.type==='gunner' ? '#8e5cd9' : '#e05555';
+    ctx.fillRect(e.x - e.w/2, ey - e.h, e.w, e.h);
+    // 눈
+    ctx.fillStyle = '#1a1428';
+    const d = e.vx > 0 ? 1 : -1;
+    ctx.fillRect(e.x + d*4 - 2, ey - e.h + 8, 5, 5);
+    if(e.type==='gunner'){
+      ctx.fillStyle = flash ? '#fff' : '#5e4a8c';
+      ctx.fillRect(e.x + d*(e.w/2 - 2), ey - e.h/2 - 3, d*12, 6);
+    }
+    if(e.type==='tank'){
+      ctx.fillStyle = 'rgba(0,0,0,.25)';
+      ctx.fillRect(e.x - e.w/2, ey - e.h, e.w, 8);
+    }
+  }
+
+  // 터렛
+  for(const t of turrets){
+    const ty = floorY(t.floor);
+    const fade = t.life < 180 && Math.floor(t.life/10)%2===0; // 소멸 직전 깜빡임
+    if(fade) continue;
+    ctx.fillStyle = '#5a6b8c';
+    ctx.fillRect(t.x - 12, ty - 10, 24, 10);
+    ctx.fillStyle = '#7dd3fc';
+    ctx.fillRect(t.x - 8, ty - 24, 16, 14);
+    ctx.fillStyle = '#d9d4e8';
+    ctx.fillRect(t.x + t.dir*8, ty - 21, t.dir*14, 5);
+    ctx.fillStyle = '#171226';
+    ctx.fillRect(t.x - 12, ty - 32, 24, 4);
+    ctx.fillStyle = '#7dd3fc';
+    ctx.fillRect(t.x - 12, ty - 32, 24 * (t.life/TURRET_LIFE), 4);
+  }
+
+  // 플레이어
+  const py = floorY(player.floor) - hopOffset();
+  const blink = player.inv > 0 && Math.floor(player.inv/5)%2===0;
+  if(!blink){
+    ctx.fillStyle = '#f0c34e';
+    ctx.fillRect(player.x - player.w/2, py - player.h, player.w, player.h);
+    // 머리띠
+    ctx.fillStyle = '#e05555';
+    ctx.fillRect(player.x - player.w/2, py - player.h + 6, player.w, 4);
+    // 총 (조준 방향으로 회전)
+    const gx = player.aimX || player.dir, gy = player.aimY;
+    ctx.save();
+    ctx.translate(player.x, py - 26);
+    ctx.rotate(Math.atan2(gy, gx));
+    ctx.fillStyle = '#d9d4e8';
+    ctx.fillRect(8, -3, 18, 6);
+    ctx.restore();
+    // 눈
+    ctx.fillStyle = '#1a1428';
+    ctx.fillRect(player.x + player.dir*5 - 2, py - player.h + 14, 5, 5);
+  }
+  // 버프 표시
+  if(player.triple > 0 || player.rapid > 0){
+    ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+    let tag = [];
+    if(player.triple>0) tag.push('3연발');
+    if(player.rapid>0) tag.push('속사');
+    ctx.fillStyle = '#ffd76b';
+    ctx.fillText(tag.join(' · '), player.x, py - player.h - 8);
+    ctx.textAlign = 'left';
+  }
+
+  // 탄
+  ctx.fillStyle = '#ffe08a';
+  for(const b of bullets){ ctx.fillRect(b.x-5, b.y-2, 10, 4); }
+  ctx.fillStyle = '#ff7d7d';
+  for(const b of enemyBullets){ ctx.fillRect(b.x-4, b.y-2, 8, 4); }
+
+  // 파티클
+  for(const p of particles){
+    ctx.globalAlpha = Math.max(0, p.life/25);
+    ctx.fillStyle = p.c;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // 터치 조준점 표시
+  if(player.touchTarget){
+    const tp = player.touchTarget;
+    const gy2 = floorY(player.floor) - 26 - hopOffset();
+    ctx.strokeStyle = 'rgba(240,195,78,.25)';
+    ctx.setLineDash([6,6]);
+    ctx.beginPath(); ctx.moveTo(player.x, gy2); ctx.lineTo(tp.x, tp.y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(240,195,78,.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(tp.x, tp.y, 12, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(tp.x-18, tp.y); ctx.lineTo(tp.x-8, tp.y);
+    ctx.moveTo(tp.x+8, tp.y);  ctx.lineTo(tp.x+18, tp.y);
+    ctx.moveTo(tp.x, tp.y-18); ctx.lineTo(tp.x, tp.y-8);
+    ctx.moveTo(tp.x, tp.y+8);  ctx.lineTo(tp.x, tp.y+18);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+  }
+
+  // 스킬 상태 표시 (좌상단)
+  if(running){
+    ctx.font = 'bold 13px sans-serif';
+    if(skillCool > 0){
+      ctx.fillStyle = 'rgba(180,170,210,.7)';
+      ctx.fillText(`${CLASS_LABEL[playerClass]} 스킬 ${Math.ceil(skillCool/60)}s`, 12, 20);
+    } else {
+      ctx.fillStyle = '#8ef0c0';
+      ctx.fillText(`${CLASS_LABEL[playerClass]} 스킬 준비됨 (E)`, 12, 20);
+    }
+  }
+
+  // 웨이브 안내
+  if(running && enemiesToSpawn === 0 && enemies.length === 0){
+    ctx.fillStyle = 'rgba(240,195,78,.9)';
+    ctx.font = 'bold 26px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(`웨이브 ${wave+1} 준비...`, W/2, TOP_PAD + 40);
+    ctx.textAlign = 'left';
+  }
+
+  ctx.restore();
+}
+
+// ----- 루프 -----
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
