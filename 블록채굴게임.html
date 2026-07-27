@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⛏️ 블럭 캐기</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { width: 100%; height: 100%; overflow-x: hidden; }
+
+  body {
+    background: #1a1a2e;
+    font-family: 'Press Start 2P', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 6px 6px 0;
+    color: #fff;
+  }
+
+  h1 {
+    font-size: clamp(0.7rem, 3vw, 1.4rem);
+    color: #FFD700;
+    text-shadow: 2px 2px 0 #7B4F00, 0 0 20px #FFD70055;
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+    text-align: center;
+  }
+
+  #stats-bar {
+    display: flex;
+    gap: 8px 14px;
+    margin-bottom: 6px;
+    font-size: clamp(0.28rem, 1.8vw, 0.45rem);
+    background: #0a0a1a;
+    border: 2px solid #FFD700;
+    padding: 5px 10px;
+    border-radius: 4px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    max-width: 1100px;
+  }
+  #stats-bar b { color: #FFD700; }
+
+  #main {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    justify-content: center;
+    width: 100%;
+    max-width: 1100px;
+    flex: 1;
+  }
+
+  #game-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+  }
+
+  #canvas {
+    display: block;
+    image-rendering: pixelated;
+    cursor: crosshair;
+    border: 3px solid #FFD700;
+    box-shadow: 0 0 20px #FFD70033;
+    width: 100%;
+    height: auto;
+    touch-action: none;
+  }
+
+  #depth-bar {
+    position: absolute;
+    right: -12px;
+    top: 0;
+    width: 8px;
+    height: 100%;
+    background: #111;
+    border: 1px solid #555;
+  }
+  #depth-indicator {
+    width: 100%;
+    background: #FFD700;
+    transition: height 0.2s;
+    position: absolute;
+    bottom: 0;
+  }
+
+  /* Desktop panel */
+  #panel {
+    background: #0a0a1a;
+    border: 2px solid #555;
+    border-radius: 4px;
+    padding: 10px;
+    width: 210px;
+    flex-shrink: 0;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  #panel h2 {
+    font-size: 0.5rem;
+    color: #aaa;
+    border-bottom: 1px solid #333;
+    padding-bottom: 5px;
+    margin-bottom: 8px;
+  }
+
+  .inv-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 5px;
+    font-size: 0.35rem;
+    color: #ddd;
+  }
+  .inv-swatch {
+    width: 14px; height: 14px;
+    border: 1px solid #555;
+    image-rendering: pixelated;
+    flex-shrink: 0;
+  }
+  .inv-count { color: #FFD700; margin-left: auto; }
+
+  #sell-btn {
+    margin-top: 10px;
+    width: 100%;
+    padding: 7px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.35rem;
+    background: #2ecc40;
+    color: #000;
+    border: 2px solid #0a5;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: transform 0.1s;
+  }
+  #sell-btn:active { transform: scale(0.96); }
+
+  #msg {
+    margin-top: 8px;
+    font-size: 0.3rem;
+    color: #5f5;
+    min-height: 12px;
+    text-align: center;
+  }
+
+  #pickaxe-section { margin-top: 10px; border-top: 1px solid #333; padding-top: 8px; }
+  #pickaxe-section h2 { font-size: 0.45rem; color: #aaa; margin-bottom: 6px; }
+
+  .upgrade-btn {
+    width: 100%;
+    margin-bottom: 4px;
+    padding: 5px 3px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.28rem;
+    background: #1a2a4a;
+    color: #aef;
+    border: 1px solid #aef;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background 0.1s;
+  }
+  .upgrade-btn:hover { background: #2a4a8a; }
+  .upgrade-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  #pickaxe-display {
+    font-size: 0.35rem;
+    color: #FFD700;
+    margin-bottom: 6px;
+  }
+
+  .float-text {
+    position: fixed;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.5rem;
+    pointer-events: none;
+    animation: floatUp 1s ease-out forwards;
+    white-space: nowrap;
+    text-shadow: 1px 1px 0 #000;
+    z-index: 999;
+  }
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-50px) scale(1.3); }
+  }
+
+  /* Mobile: panel becomes bottom drawer */
+  #panel-toggle {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 100;
+    background: #0a0a1a;
+    border-top: 2px solid #FFD700;
+  }
+
+  #panel-toggle-btn {
+    width: 100%;
+    padding: 10px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.45rem;
+    background: #0a0a1a;
+    color: #FFD700;
+    border: none;
+    cursor: pointer;
+  }
+
+  #mobile-panel {
+    display: none;
+    padding: 10px;
+    max-height: 55vh;
+    overflow-y: auto;
+  }
+  #mobile-panel.open { display: block; }
+
+  /* Mobile action bar: sell + descend always visible */
+  #mobile-actions {
+    display: none;
+    position: fixed;
+    bottom: 50px;
+    left: 0; right: 0;
+    z-index: 99;
+    gap: 6px;
+    padding: 6px;
+    background: rgba(10,10,26,0.95);
+    border-top: 1px solid #333;
+  }
+
+  @media (max-width: 700px) {
+    body { padding: 4px 4px 120px; }
+
+    h1 { font-size: 0.75rem; margin-bottom: 3px; }
+
+    #stats-bar {
+      font-size: 0.25rem;
+      gap: 5px 10px;
+      padding: 4px 6px;
+    }
+
+    /* Hide desktop panel */
+    #panel { display: none; }
+    #depth-bar { right: -10px; width: 7px; }
+
+    /* Show mobile UI */
+    #panel-toggle { display: block; }
+    #mobile-actions { display: flex; }
+
+    #mobile-sell-btn {
+      flex: 1;
+      padding: 9px 4px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.35rem;
+      background: #2ecc40;
+      color: #000;
+      border: 2px solid #0a5;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    #mobile-descend-btn {
+      flex: 1;
+      padding: 9px 4px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.3rem;
+      background: #111;
+      color: #555;
+      border: 2px solid #333;
+      cursor: not-allowed;
+      border-radius: 3px;
+      transition: all 0.2s;
+    }
+    #mobile-descend-btn.ready {
+      background: #1a3a1a;
+      color: #5f5;
+      border-color: #5f5;
+      cursor: pointer;
+    }
+  }
+</style>
+</head>
+<body>
+
+<h1>⛏️ 블럭 캐기</h1>
+
+<div id="stats-bar">
+  <div>💰 골드: <b id="s-gold">0</b></div>
+  <div>⛏️ 곡괭이: <b id="s-pick">나무</b></div>
+  <div>💪 파워: <b id="s-power">1</b></div>
+  <div>📍 깊이: <b id="s-depth">0</b>m</div>
+  <div>🎯 총 채굴: <b id="s-total">0</b></div>
+</div>
+
+<div id="main">
+  <div id="game-wrap">
+    <canvas id="canvas" width="720" height="900"></canvas>
+    <div id="depth-bar"><div id="depth-indicator" style="height:0%"></div></div>
+  </div>
+
+  <div id="panel">
+    <h2>🎒 인벤토리</h2>
+    <div id="inventory"></div>
+    <button id="sell-btn" onclick="sellAll()">💰 전부 팔기</button>
+    <div id="msg"></div>
+
+    <div id="pickaxe-section">
+      <h2>🔧 업그레이드</h2>
+      <div id="pickaxe-display">🪓 나무 곡괭이</div>
+      <button class="upgrade-btn" id="upg-stone" onclick="upgrade('stone')">🪨 돌 (50G)</button>
+      <button class="upgrade-btn" id="upg-iron" onclick="upgrade('iron')">🔩 철 (200G)</button>
+      <button class="upgrade-btn" id="upg-gold" onclick="upgrade('gold')">🥇 금 (600G)</button>
+      <button class="upgrade-btn" id="upg-diamond" onclick="upgrade('diamond')">💎 다이아 (2,000G)</button>
+      <button class="upgrade-btn" id="upg-obsidian" onclick="upgrade('obsidian')" style="border-color:#a060ff;color:#c090ff">🌑 흑요석 (15,000G)</button>
+    </div>
+
+    <div style="margin-top:14px;border-top:1px solid #333;padding-top:10px">
+      <h2 style="font-size:0.5rem;color:#aaa;margin-bottom:8px">💣 폭탄</h2>
+      <div style="font-size:0.38rem;color:#ff6;margin-bottom:6px">보유: <b id="owned-bomb-count">0</b>개</div>
+      <button class="upgrade-btn" id="buy-bomb-btn" onclick="buyBomb()" style="border-color:#f84;color:#f84">💣 구매 (10,000G)</button>
+      <button class="upgrade-btn" id="place-bomb-btn" onclick="placeBomb()" style="border-color:#f00;color:#f00;margin-top:4px">🎯 설치 모드 OFF</button>
+    </div>
+
+    <div style="margin-top:14px;border-top:1px solid #333;padding-top:10px">
+      <h2 style="font-size:0.5rem;color:#aaa;margin-bottom:8px">⬇ 하강 거리</h2>
+      <div style="font-size:0.38rem;color:#aef;margin-bottom:6px">현재: <b id="scroll-dist-display">24</b>칸</div>
+      <button class="upgrade-btn" id="buy-scroll-btn" onclick="upgradeScrollDist()" style="border-color:#5af;color:#5af">+1칸 업그레이드 (10,000G)</button>
+      <button id="descend-btn" onclick="manualDescend()" disabled
+        style="width:100%;margin-top:6px;padding:10px;font-family:'Press Start 2P',monospace;font-size:0.4rem;background:#111;color:#555;border:2px solid #333;cursor:not-allowed;border-radius:2px;transition:all 0.2s">
+        ⬇ 하강 (50% 이상 채굴시)
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile: always-visible action bar -->
+<div id="mobile-actions">
+  <button id="mobile-sell-btn" onclick="sellAll()">💰 팔기</button>
+  <button id="mobile-descend-btn" onclick="manualDescend()" disabled>⬇ 하강</button>
+</div>
+
+<!-- Mobile: bottom panel drawer -->
+<div id="panel-toggle">
+  <button id="panel-toggle-btn" onclick="toggleMobilePanel()">⚙️ 메뉴 ▲</button>
+  <div id="mobile-panel">
+    <div id="mobile-inventory" style="margin-bottom:6px"></div>
+    <div id="mobile-msg" style="font-size:0.28rem;color:#5f5;margin:4px 0;min-height:10px;text-align:center"></div>
+    <div style="border-top:1px solid #333;padding-top:6px;margin-top:2px">
+      <div style="font-size:0.28rem;color:#aaa;margin-bottom:3px">🔧 곡괭이</div>
+      <div id="mobile-pick-display" style="font-size:0.28rem;color:#FFD700;margin-bottom:4px"></div>
+      <button class="upgrade-btn" id="m-upg-stone" onclick="upgrade('stone')">🪨 돌 (50G)</button>
+      <button class="upgrade-btn" id="m-upg-iron" onclick="upgrade('iron')">🔩 철 (200G)</button>
+      <button class="upgrade-btn" id="m-upg-gold" onclick="upgrade('gold')">🥇 금 (600G)</button>
+      <button class="upgrade-btn" id="m-upg-diamond" onclick="upgrade('diamond')">💎 다이아 (2,000G)</button>
+      <button class="upgrade-btn" id="m-upg-obsidian" onclick="upgrade('obsidian')" style="border-color:#a060ff;color:#c090ff">🌑 흑요석 (15,000G)</button>
+    </div>
+    <div style="border-top:1px solid #333;padding-top:6px;margin-top:6px">
+      <div style="font-size:0.28rem;color:#aaa;margin-bottom:3px">💣 폭탄 (보유: <b id="m-bomb-count">0</b>개)</div>
+      <button class="upgrade-btn" id="m-buy-bomb" onclick="buyBomb()" style="border-color:#f84;color:#f84">💣 구매 (10,000G)</button>
+      <button class="upgrade-btn" id="m-place-bomb" onclick="placeBomb()" style="border-color:#f00;color:#f00">🎯 설치 모드 OFF</button>
+    </div>
+    <div style="border-top:1px solid #333;padding-top:6px;margin-top:6px">
+      <div style="font-size:0.28rem;color:#aaa;margin-bottom:3px">⬇ 하강 거리: <b id="m-scroll-dist">24</b>칸</div>
+      <button class="upgrade-btn" id="m-buy-scroll" onclick="upgradeScrollDist()" style="border-color:#5af;color:#5af">+1칸 (10,000G)</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const COLS = 18, ROWS = 24;
+const BW = canvas.width / COLS, BH = canvas.height / ROWS;
+
+const BLOCK_TYPES = {
+  air:      { name:'공기',      color:'#87CEEB', hp:0,    value:0,     emoji:'' },
+  dirt:     { name:'흙',        color:'#8B5E20', hp:1,    value:1,     emoji:'🟫' },
+  grass:    { name:'잔디',      color:'#3a8c3a', hp:1,    value:1,     emoji:'🟩' },
+  stone:    { name:'돌',        color:'#777',    hp:3,    value:2,     emoji:'⬜' },
+  coal:     { name:'석탄',      color:'#2a2a2a', hp:4,    value:5,     emoji:'⚫' },
+  iron:     { name:'철광석',    color:'#b08060', hp:6,    value:12,    emoji:'🟠' },
+  gold:     { name:'금광석',    color:'#DAA520', hp:8,    value:30,    emoji:'🟡' },
+  diamond:  { name:'다이아',    color:'#00e5ff', hp:12,   value:100,   emoji:'🔷' },
+  emerald:  { name:'에메랄드',  color:'#00b34a', hp:10,   value:70,    emoji:'💚' },
+  ruby:     { name:'루비',      color:'#e8003a', hp:15,   value:200,   emoji:'❤️' },
+  sapphire: { name:'사파이어',  color:'#1a6aff', hp:18,   value:350,   emoji:'💙' },
+  amethyst: { name:'자수정',    color:'#9b30e8', hp:20,   value:500,   emoji:'💜' },
+  obsidian: { name:'흑요석',    color:'#1a0a2e', hp:30,   value:1000,  emoji:'🌑' },
+  starstone:{ name:'별석',      color:'#fffacc', hp:40,   value:3000,  emoji:'⭐' },
+  bomb:     { name:'폭탄',      color:'#c0392b', hp:2,    value:0,     emoji:'💣' },
+  bedrock:  { name:'기반암',    color:'#111',    hp:999,  value:0,     emoji:'⬛' },
+};
+
+const PICKAXES = {
+  wood:     { name:'나무 곡괭이',    power:1,  emoji:'🪓' },
+  stone:    { name:'돌 곡괭이',      power:2,  emoji:'⛏️' },
+  iron:     { name:'철 곡괭이',      power:4,  emoji:'🔩' },
+  gold:     { name:'금 곡괭이',      power:7,  emoji:'🥇' },
+  diamond:  { name:'다이아 곡괭이',  power:15, emoji:'💎' },
+  obsidian: { name:'흑요석 곡괭이',  power:40, emoji:'🌑' },
+};
+
+const UPGRADE_COSTS = { stone:50, iron:200, gold:600, diamond:2000, obsidian:15000 };
+const PICKAXE_INTERVAL = { wood:100, stone:75, iron:50, gold:25, diamond:10, obsidian:10 };
+const UPGRADE_ORDER = ['wood','stone','iron','gold','diamond','obsidian'];
+
+let grid = [];
+let hpGrid = [];
+let inventory = {};
+let gold = 0;
+let pickaxe = 'wood';
+let totalMined = 0;
+let worldOffset = 0; // how many rows deep the top of screen is
+let scrollAnim = 0;  // pixels to offset draw (animates scroll)
+let isScrolling = false;
+let animBlocks = [];
+
+// Generate a block type based on absolute world row
+function getBlockForWorldRow(worldRow) {
+  if (worldRow === 0) return 'grass';
+  if (worldRow <= 3) return 'dirt';
+  const r = Math.random();
+  if (worldRow < 5) {
+    return r < 0.0001 ? 'bomb' : r < 0.08 ? 'coal' : 'stone';
+  } else if (worldRow < 10) {
+    return r < 0.0001 ? 'bomb' : r < 0.10 ? 'coal' : r < 0.16 ? 'iron' : 'stone';
+  } else if (worldRow < 20) {
+    return r < 0.0001 ? 'bomb' : r < 0.09 ? 'iron' : r < 0.15 ? 'gold' : r < 0.19 ? 'coal' : 'stone';
+  } else if (worldRow < 40) {
+    return r < 0.0001 ? 'bomb' : r < 0.08 ? 'gold' : r < 0.14 ? 'diamond' : r < 0.19 ? 'emerald' : 'stone';
+  } else if (worldRow < 70) {
+    return r < 0.0001 ? 'bomb' : r < 0.07 ? 'diamond' : r < 0.13 ? 'emerald' : r < 0.18 ? 'ruby' : r < 0.21 ? 'gold' : 'stone';
+  } else if (worldRow < 120) {
+    return r < 0.0001 ? 'bomb' : r < 0.08 ? 'ruby' : r < 0.14 ? 'sapphire' : r < 0.19 ? 'diamond' : r < 0.22 ? 'emerald' : 'stone';
+  } else if (worldRow < 200) {
+    return r < 0.0001 ? 'bomb' : r < 0.07 ? 'sapphire' : r < 0.13 ? 'amethyst' : r < 0.18 ? 'ruby' : r < 0.21 ? 'diamond' : 'stone';
+  } else if (worldRow < 350) {
+    return r < 0.0001 ? 'bomb' : r < 0.06 ? 'amethyst' : r < 0.11 ? 'obsidian' : r < 0.16 ? 'sapphire' : r < 0.20 ? 'ruby' : 'stone';
+  } else {
+    return r < 0.0001 ? 'bomb' : r < 0.05 ? 'starstone' : r < 0.10 ? 'obsidian' : r < 0.16 ? 'amethyst' : r < 0.21 ? 'sapphire' : 'stone';
+  }
+}
+
+function makeRow(worldRow) {
+  const row = [], hp = [];
+  for (let c = 0; c < COLS; c++) {
+    const t = getBlockForWorldRow(worldRow);
+    row.push(t);
+    hp.push(BLOCK_TYPES[t].hp);
+  }
+  return { row, hp };
+}
+
+function initGrid() {
+  grid = [];
+  hpGrid = [];
+  for (let r = 0; r < ROWS; r++) {
+    const { row, hp } = makeRow(r);
+    grid.push(row);
+    hpGrid.push(hp);
+  }
+}
+
+// Count total non-air, non-bedrock blocks in grid
+function countBlocks() {
+  let total = 0, air = 0;
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++) {
+      if (!grid[r] || grid[r][c] === undefined) continue;
+      const t = grid[r][c];
+      if (t === 'bedrock') continue;
+      if (t === 'air') air++;
+      else total++;
+    }
+  return { total, air };
+}
+
+function checkScroll() {
+  if (isScrolling) return;
+  const { total, air } = countBlocks();
+  const totalCells = total + air;
+  const minedRatio = totalCells > 0 ? air / totalCells : 0;
+  const btn = document.getElementById('descend-btn');
+  const pct = Math.floor(minedRatio * 100);
+  if (minedRatio >= 0.5) {
+    btn.disabled = false;
+    btn.style.background = '#1a3a1a';
+    btn.style.color = '#5f5';
+    btn.style.borderColor = '#5f5';
+    btn.style.cursor = 'pointer';
+    btn.textContent = '⬇ 하강하기!';
+    updateMobileDescendBtn(true, pct);
+  } else {
+    btn.disabled = true;
+    btn.style.background = '#111';
+    btn.style.color = '#555';
+    btn.style.borderColor = '#333';
+    btn.style.cursor = 'not-allowed';
+    btn.textContent = `⬇ 하강 (${pct}% / 50%)`;
+    updateMobileDescendBtn(false, pct);
+  }
+}
+
+function manualDescend() {
+  if (isScrolling) return;
+  const { total, air } = countBlocks();
+  const totalCells = total + air;
+  if (air / totalCells < 0.5) return;
+  triggerScroll();
+}
+
+let SCROLL_ROWS = 24;
+
+let ownedBombs = 0;
+let placeBombMode = false;
+
+function buyBomb() {
+  if (gold < 10000) { setMsg('골드가 부족해요! (10,000G 필요)'); return; }
+  gold -= 10000;
+  ownedBombs++;
+  updateStats();
+  updateBombShopUI();
+  setMsg('💣 폭탄 구매 완료!');
+}
+
+function placeBomb() {
+  if (ownedBombs <= 0 && !placeBombMode) { setMsg('폭탄이 없어요!'); return; }
+  placeBombMode = !placeBombMode;
+  canvas.style.cursor = placeBombMode ? 'crosshair' : 'crosshair';
+  canvas.style.filter = placeBombMode ? 'hue-rotate(20deg) brightness(1.1)' : '';
+  updateBombShopUI();
+}
+
+function updateBombShopUI() {
+  document.getElementById('owned-bomb-count').textContent = ownedBombs;
+  document.getElementById('buy-bomb-btn').disabled = gold < 10000;
+  const btn = document.getElementById('place-bomb-btn');
+  if (placeBombMode) {
+    btn.textContent = '🎯 설치 모드 ON';
+    btn.style.background = '#400';
+    btn.style.color = '#f55';
+  } else {
+    btn.textContent = '🎯 설치 모드 OFF';
+    btn.style.background = '';
+    btn.style.color = '#f00';
+  }
+}
+function triggerScroll() {
+  isScrolling = true;
+  stopMining();
+
+  // Animate scroll down by SCROLL_ROWS rows
+  const scrollAmount = SCROLL_ROWS;
+  scrollAnim = scrollAmount * BH; // start offset (draw BELOW)
+
+  const duration = 600; // ms
+  const start = performance.now();
+
+  function animStep(now) {
+    const t = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+    scrollAnim = scrollAmount * BH * (1 - ease);
+
+    if (t < 1) {
+      requestAnimationFrame(animStep);
+    } else {
+      scrollAnim = 0;
+      // Shift grid up by scrollAmount rows
+      for (let i = 0; i < scrollAmount; i++) {
+        grid.shift();
+        hpGrid.shift();
+        worldOffset++;
+        // Add new row at bottom
+        const { row, hp } = makeRow(worldOffset + ROWS - 1);
+        grid.push(row);
+        hpGrid.push(hp);
+      }
+      isScrolling = false;
+      updateStats();
+      showDescendMessage();
+      checkScroll(); // reset button state
+    }
+  }
+  requestAnimationFrame(animStep);
+}
+
+function showDescendMessage() {
+  setMsg(`⬇️ 깊이 ${worldOffset}m 로 하강!`);
+}
+
+function drawBlock(r, c, yOffset) {
+  if (!grid[r] || grid[r][c] === undefined) return;
+  const t = grid[r][c];
+  if (!BLOCK_TYPES[t]) return;
+  const bt = BLOCK_TYPES[t];
+  const x = c * BW;
+  const y = r * BH + yOffset;
+
+  if (t === 'air') {
+    // Show dark underground void for air blocks underground
+    if (worldOffset + r > 0) {
+      ctx.fillStyle = '#1a1008';
+      ctx.fillRect(x, y, BW, BH);
+    } else {
+      const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      grad.addColorStop(0, '#87CEEB');
+      grad.addColorStop(1, '#5ab5e0');
+      ctx.fillStyle = grad;
+      ctx.fillRect(x, y, BW, BH);
+    }
+    return;
+  }
+
+  ctx.fillStyle = bt.color;
+  ctx.fillRect(x, y, BW, BH);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.fillRect(x, y, BW, 2);
+  ctx.fillRect(x, y, 2, BH);
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.fillRect(x+BW-2, y, 2, BH);
+  ctx.fillRect(x, y+BH-2, BW, 2);
+
+  if (bt.hp > 1 && hpGrid[r] && hpGrid[r][c] < bt.hp) {
+    const dmg = 1 - hpGrid[r][c] / bt.hp;
+    ctx.fillStyle = `rgba(0,0,0,${dmg * 0.6})`;
+    ctx.fillRect(x, y, BW, BH);
+    ctx.strokeStyle = `rgba(0,0,0,${dmg})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    if (dmg > 0.2) { ctx.moveTo(x+BW*0.3, y+BH*0.2); ctx.lineTo(x+BW*0.6, y+BH*0.5); }
+    if (dmg > 0.5) { ctx.moveTo(x+BW*0.6, y+BH*0.3); ctx.lineTo(x+BW*0.2, y+BH*0.7); }
+    if (dmg > 0.75) { ctx.moveTo(x+BW*0.5, y+BH*0.1); ctx.lineTo(x+BW*0.8, y+BH*0.9); }
+    ctx.stroke();
+  }
+
+  if (['diamond','gold','emerald','ruby','sapphire','amethyst','obsidian','starstone'].includes(t)) {
+    const shine = Date.now() % 2000 / 2000;
+    ctx.fillStyle = `rgba(255,255,255,${0.3 * Math.sin(shine * Math.PI * 2 + r * c)})`;
+    ctx.fillRect(x + BW*0.3, y + BH*0.3, BW*0.4, BH*0.4);
+  }
+
+  // Extra star sparkle for starstone
+  if (t === 'starstone') {
+    const t2 = Date.now() / 500;
+    for (let i = 0; i < 3; i++) {
+      const sx = x + BW * (0.2 + 0.6 * ((i * 0.37 + t2 * 0.1) % 1));
+      const sy = y + BH * (0.2 + 0.6 * ((i * 0.61 + t2 * 0.07) % 1));
+      ctx.fillStyle = `rgba(255,255,150,${0.6 + 0.4 * Math.sin(t2 + i)})`;
+      ctx.fillRect(sx, sy, 3, 3);
+    }
+  }
+
+  // Bomb: draw 💣 emoji centered
+  if (t === 'bomb') {
+    const pulse = 0.85 + 0.15 * Math.sin(Date.now() / 300 + r * c);
+    ctx.save();
+    ctx.font = `${BH * 0.65 * pulse}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('💣', x + BW/2, y + BH/2);
+    ctx.restore();
+    // red glow
+    ctx.save();
+    const glow = ctx.createRadialGradient(x+BW/2, y+BH/2, 0, x+BW/2, y+BH/2, BW*0.6);
+    glow.addColorStop(0, `rgba(255,50,0,${0.15 + 0.1 * Math.sin(Date.now()/300)})`);
+    glow.addColorStop(1, 'rgba(255,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(x, y, BW, BH);
+    ctx.restore();
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const yOff = scrollAnim; // positive = content shifted down (revealing new content below)
+
+  // Draw extra row above (for scroll-in effect)
+  if (scrollAnim > 0) {
+    // fill top with dark (the "new" area coming from below)
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, canvas.width, yOff);
+  }
+
+  ctx.save();
+  ctx.translate(0, yOff);
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      drawBlock(r, c, 0);
+  ctx.restore();
+
+  // Draw scroll indicator overlay
+  if (isScrolling) {
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#FFD700';
+    ctx.font = `bold ${BW}px "Press Start 2P", monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText('⬇ 하강 중 ⬇', canvas.width/2, canvas.height/2);
+    ctx.textAlign = 'left';
+  }
+
+  // Particles
+  animBlocks = animBlocks.filter(a => {
+    a.progress += 0.07;
+    const alpha = 1 - a.progress;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = a.color;
+    const size = BW * 0.3 * (1 - a.progress * 0.5);
+    ctx.fillRect(a.x - size/2, a.y - size/2 + scrollAnim, size, size);
+    ctx.globalAlpha = 1;
+    return a.progress < 1;
+  });
+
+  requestAnimationFrame(draw);
+}
+
+function spawnParticles(r, c, color) {
+  const cx = c * BW + BW/2, cy = r * BH + BH/2;
+  for (let i = 0; i < 5; i++) {
+    animBlocks.push({
+      x: cx + (Math.random()-0.5)*BW,
+      y: cy + (Math.random()-0.5)*BH,
+      progress: 0, color
+    });
+  }
+}
+
+function mineBlock(r, c) {
+  if (isScrolling) return;
+  if (!grid[r] || grid[r][c] === undefined) return;
+  const t = grid[r][c];
+  if (t === 'air' || t === 'bedrock') return;
+  const bt = BLOCK_TYPES[t];
+  const power = PICKAXES[pickaxe].power;
+
+  hpGrid[r][c] -= power;
+  if (hpGrid[r][c] <= 0) {
+    spawnParticles(r, c, bt.color);
+    grid[r][c] = 'air';
+    hpGrid[r][c] = 0;
+
+    if (t === 'bomb') {
+      // explode instead of going to inventory
+      showFloatText('💥 폭발!', c * BW + BW/2, r * BH, '#ff6600');
+      explodeBombAt(r, c);
+    } else {
+      inventory[t] = (inventory[t] || 0) + 1;
+      totalMined++;
+      showFloatText(bt.emoji + ' +1', c * BW + BW/2, r * BH, bt.color);
+    }
+    updateStats();
+    updateInventoryUI();
+    checkScroll();
+  }
+}
+
+function showFloatText(text, canvasX, canvasY, color) {
+  const el = document.createElement('div');
+  el.className = 'float-text';
+  el.textContent = text;
+  el.style.color = color;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = rect.width / canvas.width;
+  const scaleY = rect.height / canvas.height;
+  el.style.left = (rect.left + canvasX * scaleX) + 'px';
+  el.style.top = (rect.top + canvasY * scaleY + window.scrollY) + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1000);
+}
+
+function getGridPos(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const mx = (clientX - rect.left) * scaleX;
+  const my = (clientY - rect.top) * scaleY;
+  return {
+    c: Math.floor(mx / BW),
+    r: Math.floor(my / BH)
+  };
+}
+
+let mineInterval = null;
+let currentMinePos = null;
+
+function startMining(clientX, clientY) {
+  const pos = getGridPos(clientX, clientY);
+  currentMinePos = pos;
+  if (pos.r >= 0 && pos.r < ROWS && pos.c >= 0 && pos.c < COLS) mineBlock(pos.r, pos.c);
+  if (mineInterval) clearInterval(mineInterval);
+  mineInterval = setInterval(() => {
+    if (currentMinePos) {
+      const {r, c} = currentMinePos;
+      if (r >= 0 && r < ROWS && c >= 0 && c < COLS) mineBlock(r, c);
+    }
+  }, PICKAXE_INTERVAL[pickaxe]);
+}
+
+function moveMining(clientX, clientY) {
+  currentMinePos = getGridPos(clientX, clientY);
+}
+
+function stopMining() {
+  if (mineInterval) { clearInterval(mineInterval); mineInterval = null; }
+  currentMinePos = null;
+}
+
+// Mouse
+canvas.addEventListener('mousedown', (e) => {
+  const {r, c} = getGridPos(e.clientX, e.clientY);
+  if (placeBombMode && ownedBombs > 0) {
+    ownedBombs--;
+    placeBombMode = false;
+    canvas.style.filter = '';
+    updateBombShopUI();
+    showFloatText('💣 쾅!', c * BW + BW/2, r * BH, '#ff6600');
+    explodeBombAt(r, c);
+    return;
+  }
+  startMining(e.clientX, e.clientY);
+});
+canvas.addEventListener('mousemove', (e) => { if (mineInterval) moveMining(e.clientX, e.clientY); });
+canvas.addEventListener('mouseup', stopMining);
+canvas.addEventListener('mouseleave', stopMining);
+
+// Touch
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const t = e.touches[0] || e.changedTouches[0];
+  if (!t) return;
+  if (placeBombMode && ownedBombs > 0) {
+    const {r, c} = getGridPos(t.clientX, t.clientY);
+    ownedBombs--;
+    placeBombMode = false;
+    canvas.style.filter = '';
+    updateBombShopUI();
+    showFloatText('💣 쾅!', c * BW + BW/2, r * BH, '#ff6600');
+    explodeBombAt(r, c);
+    return;
+  }
+  startMining(t.clientX, t.clientY);
+}, {passive:false});
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const t = e.touches[0] || e.changedTouches[0];
+  if (!t) return;
+  moveMining(t.clientX, t.clientY);
+}, {passive:false});
+canvas.addEventListener('touchend', stopMining);
+
+function updateStats() {
+  document.getElementById('s-gold').textContent = gold;
+  document.getElementById('s-pick').textContent = PICKAXES[pickaxe].name;
+  document.getElementById('s-power').textContent = PICKAXES[pickaxe].power;
+  document.getElementById('s-depth').textContent = worldOffset + 'm';
+  document.getElementById('s-total').textContent = totalMined;
+  document.getElementById('pickaxe-display').textContent = PICKAXES[pickaxe].emoji + ' ' + PICKAXES[pickaxe].name;
+  updateBombShopUI();
+  updateScrollDistUI();
+
+  UPGRADE_ORDER.forEach((p, i) => {
+    const btn = document.getElementById('upg-' + p);
+    if (!btn) return;
+    const myIdx = UPGRADE_ORDER.indexOf(pickaxe);
+    const cost = UPGRADE_COSTS[p];
+    if (i <= myIdx) {
+      btn.disabled = true;
+      btn.textContent = '✅ 보유중';
+    } else if (i === myIdx + 1) {
+      btn.disabled = gold < cost;
+      const names = {stone:'🪨 돌',iron:'🔩 철',gold:'🥇 금',diamond:'💎 다이아',obsidian:'🌑 흑요석'};
+      const costs = {stone:'50G',iron:'200G',gold:'600G',diamond:'2,000G',obsidian:'15,000G'};
+      btn.textContent = `${names[p]} (${costs[p]})`;
+    } else {
+      btn.disabled = true;
+      btn.textContent = `🔒 잠김`;
+    }
+  });
+}
+
+function updateInventoryUI() {
+  const div = document.getElementById('inventory');
+  div.innerHTML = '';
+  let hasAny = false;
+  Object.entries(inventory).forEach(([type, count]) => {
+    if (count <= 0) return;
+    hasAny = true;
+    const bt = BLOCK_TYPES[type];
+    const row = document.createElement('div');
+    row.className = 'inv-item';
+    const sw = document.createElement('canvas');
+    sw.className = 'inv-swatch';
+    sw.width = 18; sw.height = 18;
+    const sc = sw.getContext('2d');
+    sc.fillStyle = bt.color;
+    sc.fillRect(0,0,18,18);
+    sc.fillStyle = 'rgba(255,255,255,0.15)';
+    sc.fillRect(0,0,18,3);
+    row.appendChild(sw);
+    const label = document.createElement('span');
+    label.textContent = bt.emoji + ' ' + bt.name;
+    row.appendChild(label);
+    const cnt = document.createElement('span');
+    cnt.className = 'inv-count';
+    cnt.textContent = `x${count} (${bt.value * count}G)`;
+    row.appendChild(cnt);
+    div.appendChild(row);
+  });
+  if (!hasAny) {
+    div.innerHTML = '<div style="font-size:0.35rem;color:#555;margin-top:4px">블럭을 캐보세요!</div>';
+  }
+}
+
+function sellAll() {
+  let earned = 0;
+  Object.entries(inventory).forEach(([type, count]) => {
+    earned += BLOCK_TYPES[type].value * count;
+    inventory[type] = 0;
+  });
+  if (earned === 0) { setMsg('팔 것이 없어요!'); return; }
+  gold += earned;
+  setMsg(`💰 +${earned} 골드 획득!`);
+  updateStats();
+  updateInventoryUI();
+}
+
+function upgrade(type) {
+  const cost = UPGRADE_COSTS[type];
+  if (gold < cost) return;
+  gold -= cost;
+  pickaxe = type;
+  // restart interval with new speed if currently mining
+  if (mineInterval) {
+    clearInterval(mineInterval);
+    mineInterval = setInterval(() => {
+      if (currentMinePos) {
+        const {r, c} = currentMinePos;
+        if (r >= 0 && r < ROWS && c >= 0 && c < COLS) mineBlock(r, c);
+      }
+    }, PICKAXE_INTERVAL[pickaxe]);
+  }
+  setMsg(PICKAXES[type].emoji + ' 업그레이드 완료!');
+  updateStats();
+}
+
+function upgradeScrollDist() {
+  if (gold < 10000) { setMsg('골드가 부족해요! (10,000G 필요)'); return; }
+  gold -= 10000;
+  SCROLL_ROWS++;
+  updateStats();
+  updateScrollDistUI();
+  setMsg(`⬇ 하강 거리 ${SCROLL_ROWS}칸으로 증가!`);
+}
+
+function updateScrollDistUI() {
+  const el = document.getElementById('scroll-dist-display');
+  if (el) el.textContent = SCROLL_ROWS;
+  const btn = document.getElementById('buy-scroll-btn');
+  if (btn) btn.disabled = gold < 10000;
+}
+
+function setMsg(m) {
+  const el = document.getElementById('msg');
+  el.textContent = m;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.textContent = '', 3000);
+  const mel = document.getElementById('mobile-msg');
+  if (mel) { mel.textContent = m; clearTimeout(mel._t); mel._t = setTimeout(() => mel.textContent = '', 3000); }
+  updateMobileUI();
+}
+
+const BOMB_RADIUS = 8;
+
+function explodeBombAt(centerR, centerC, chain = false) {
+  const toDestroy = [];
+  for (let r = centerR - BOMB_RADIUS; r <= centerR + BOMB_RADIUS; r++) {
+    for (let c = centerC - BOMB_RADIUS; c <= centerC + BOMB_RADIUS; c++) {
+      if (r < 0 || r >= ROWS || c < 0 || c >= COLS) continue;
+      const dist = Math.sqrt((r - centerR)**2 + (c - centerC)**2);
+      if (dist <= BOMB_RADIUS && grid[r][c] !== 'air' && grid[r][c] !== 'bedrock') {
+        toDestroy.push({r, c, dist});
+      }
+    }
+  }
+
+  toDestroy.sort((a, b) => a.dist - b.dist);
+  toDestroy.forEach(({r, c, dist}) => {
+    setTimeout(() => {
+      if (!grid[r] || grid[r][c] === undefined || grid[r][c] === 'air') return;
+      const t = grid[r][c];
+      if (t === 'bedrock') return;
+      const bt = BLOCK_TYPES[t];
+      spawnParticles(r, c, bt.color);
+      grid[r][c] = 'air';
+      hpGrid[r][c] = 0;
+      if (t === 'bomb') {
+        // 연쇄 폭발!
+        setTimeout(() => explodeBombAt(r, c, true), 80);
+        showFloatText('💥💥', c * BW + BW/2, r * BH, '#ff4400');
+      } else {
+        inventory[t] = (inventory[t] || 0) + 1;
+        totalMined++;
+      }
+    }, dist * 40);
+  });
+
+  showExplosionFlash(centerR, centerC);
+
+  const totalDelay = BOMB_RADIUS * 40 + 200;
+  setTimeout(() => {
+    updateStats();
+    updateInventoryUI();
+    checkScroll();
+    if (!chain) setMsg(`💥 폭발! ${toDestroy.length}개 블록 파괴!`);
+  }, totalDelay);
+}
+
+function showExplosionFlash(r, c) {
+  const cx = c * BW + BW / 2;
+  const cy = r * BH + BH / 2;
+  let frame = 0;
+  const maxFrames = 18;
+  function animFlash() {
+    if (frame >= maxFrames) return;
+    const t = frame / maxFrames;
+    const radius = BOMB_RADIUS * BW * (0.5 + t * 1.0);
+    const alpha = 1 - t;
+    ctx.save();
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    grad.addColorStop(0, `rgba(255,255,200,${alpha})`);
+    grad.addColorStop(0.4, `rgba(255,120,0,${alpha * 0.8})`);
+    grad.addColorStop(1, `rgba(255,0,0,0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    frame++;
+    requestAnimationFrame(animFlash);
+  }
+  animFlash();
+}
+
+
+function toggleMobilePanel() {
+  const panel = document.getElementById('mobile-panel');
+  const btn = document.getElementById('panel-toggle-btn');
+  const isOpen = panel.classList.toggle('open');
+  btn.textContent = isOpen ? '⚙️ 메뉴 ▼' : '⚙️ 메뉴 ▲';
+  if (isOpen) updateMobileUI();
+}
+
+function updateMobileUI() {
+  // inventory
+  const div = document.getElementById('mobile-inventory');
+  if (!div) return;
+  div.innerHTML = '<div style="font-size:0.28rem;color:#aaa;margin-bottom:4px">🎒 인벤토리</div>';
+  let hasAny = false;
+  Object.entries(inventory).forEach(([type, count]) => {
+    if (count <= 0) return;
+    hasAny = true;
+    const bt = BLOCK_TYPES[type];
+    const row = document.createElement('div');
+    row.className = 'inv-item';
+    row.style.fontSize = '0.28rem';
+    row.innerHTML = `<span>${bt.emoji} ${bt.name}</span><span class="inv-count">x${count} (${bt.value*count}G)</span>`;
+    div.appendChild(row);
+  });
+  if (!hasAny) div.innerHTML += '<div style="font-size:0.26rem;color:#555">블럭을 캐보세요!</div>';
+
+  // pickaxe
+  const pd = document.getElementById('mobile-pick-display');
+  if (pd) pd.textContent = PICKAXES[pickaxe].emoji + ' ' + PICKAXES[pickaxe].name;
+
+  // upgrade buttons
+  UPGRADE_ORDER.forEach((p, i) => {
+    const btn = document.getElementById('m-upg-' + p);
+    if (!btn) return;
+    const myIdx = UPGRADE_ORDER.indexOf(pickaxe);
+    const costs = {stone:'50G',iron:'200G',gold:'600G',diamond:'2,000G',obsidian:'15,000G'};
+    const names = {stone:'🪨 돌',iron:'🔩 철',gold:'🥇 금',diamond:'💎 다이아',obsidian:'🌑 흑요석'};
+    if (i <= myIdx) { btn.disabled = true; btn.textContent = '✅ 보유중'; }
+    else if (i === myIdx + 1) { btn.disabled = gold < UPGRADE_COSTS[p]; btn.textContent = `${names[p]} (${costs[p]})`; }
+    else { btn.disabled = true; btn.textContent = '🔒 잠김'; }
+  });
+
+  // bomb
+  const mbc = document.getElementById('m-bomb-count');
+  if (mbc) mbc.textContent = ownedBombs;
+  const mbuy = document.getElementById('m-buy-bomb');
+  if (mbuy) mbuy.disabled = gold < 10000;
+  const mplace = document.getElementById('m-place-bomb');
+  if (mplace) { mplace.textContent = placeBombMode ? '🎯 설치 모드 ON' : '🎯 설치 모드 OFF'; mplace.style.background = placeBombMode ? '#400' : ''; }
+
+  // scroll dist
+  const msd = document.getElementById('m-scroll-dist');
+  if (msd) msd.textContent = SCROLL_ROWS;
+  const mbs = document.getElementById('m-buy-scroll');
+  if (mbs) mbs.disabled = gold < 10000;
+}
+
+function updateMobileDescendBtn(enabled, pct) {
+  const btn = document.getElementById('mobile-descend-btn');
+  if (!btn) return;
+  if (enabled) {
+    btn.disabled = false;
+    btn.classList.add('ready');
+    btn.textContent = '⬇ 하강!';
+  } else {
+    btn.disabled = true;
+    btn.classList.remove('ready');
+    btn.textContent = `⬇ ${pct}%/50%`;
+  }
+}
+
+initGrid();
+updateStats();
+updateInventoryUI();
+draw();
+</script>
+</body>
+</html>
