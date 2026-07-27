@@ -2,9 +2,13 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>HTML 게임 모음</title>
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    >
+
+    <title>물티슈 TV 게임 모음</title>
 
     <style>
         * {
@@ -21,19 +25,30 @@
             background: #111827;
         }
 
+        button {
+            font-family: inherit;
+        }
+
         .app {
             display: flex;
             width: 100%;
             height: 100vh;
+            height: 100dvh;
         }
 
-        /* 왼쪽 게임 목록 */
+        /* =========================
+           왼쪽 게임 목록
+        ========================= */
+
         .sidebar {
             width: 280px;
             min-width: 280px;
             height: 100vh;
+            height: 100dvh;
+
             display: flex;
             flex-direction: column;
+
             background: #111827;
             border-right: 1px solid #374151;
         }
@@ -53,6 +68,7 @@
             margin: 0;
             color: #9ca3af;
             font-size: 13px;
+            word-break: break-all;
         }
 
         #gameList {
@@ -70,14 +86,21 @@
         .game-button {
             width: 100%;
             padding: 13px 14px;
+
             border: 1px solid transparent;
             border-radius: 8px;
+
             background: #1f2937;
             color: #e5e7eb;
+
             text-align: left;
             font-size: 15px;
             cursor: pointer;
-            transition: 0.2s;
+
+            transition:
+                background 0.2s,
+                border-color 0.2s,
+                color 0.2s;
         }
 
         .game-button:hover {
@@ -96,28 +119,46 @@
             color: #9ca3af;
             text-align: center;
             font-size: 14px;
+            line-height: 1.6;
         }
 
-        /* 오른쪽 게임 화면 */
+        /* =========================
+           오른쪽 게임 영역
+        ========================= */
+
         .content {
             flex: 1;
             min-width: 0;
             height: 100vh;
+            height: 100dvh;
+
             display: flex;
             flex-direction: column;
+
             background: #ffffff;
         }
 
         .toolbar {
             height: 54px;
             min-height: 54px;
-            padding: 0 18px;
+            padding: 0 14px;
+
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 10px;
+
             background: #1f2937;
             color: #ffffff;
             border-bottom: 1px solid #374151;
+        }
+
+        .toolbar-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            flex: 1;
         }
 
         #currentTitle {
@@ -129,15 +170,20 @@
 
         .toolbar-buttons {
             display: flex;
+            align-items: center;
             gap: 8px;
+            flex-shrink: 0;
         }
 
         .toolbar button {
             padding: 8px 12px;
+
             border: 0;
             border-radius: 6px;
+
             background: #374151;
             color: #ffffff;
+
             cursor: pointer;
         }
 
@@ -145,31 +191,135 @@
             background: #4b5563;
         }
 
+        .mobile-menu-button {
+            display: none;
+        }
+
         #gameFrame {
             flex: 1;
             width: 100%;
-            height: calc(100vh - 54px);
+            min-height: 0;
             border: 0;
             background: #ffffff;
         }
 
-        /* 모바일 화면 */
+        /* 모바일 메뉴 뒤 어두운 배경 */
+        .sidebar-overlay {
+            display: none;
+        }
+
+        /* =========================
+           모바일
+        ========================= */
+
         @media (max-width: 700px) {
             .sidebar {
-                width: 190px;
-                min-width: 190px;
+                position: fixed;
+                top: 0;
+                left: 0;
+                z-index: 1000;
+
+                width: 280px;
+                min-width: 280px;
+                max-width: 85vw;
+
+                transform: translateX(-100%);
+                transition: transform 0.25s ease;
+
+                box-shadow: 5px 0 20px rgba(0, 0, 0, 0.45);
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .sidebar-overlay {
+                position: fixed;
+                inset: 0;
+                z-index: 999;
+
+                display: block;
+                visibility: hidden;
+                opacity: 0;
+
+                background: rgba(0, 0, 0, 0.55);
+
+                transition:
+                    opacity 0.25s ease,
+                    visibility 0.25s ease;
+            }
+
+            .sidebar-overlay.open {
+                visibility: visible;
+                opacity: 1;
+            }
+
+            .content {
+                width: 100%;
+                height: 100vh;
+                height: 100dvh;
+            }
+
+            .toolbar {
+                height: 50px;
+                min-height: 50px;
+                padding:
+                    env(safe-area-inset-top)
+                    8px
+                    0
+                    8px;
+            }
+
+            .mobile-menu-button {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+
+                width: 38px;
+                height: 36px;
+                padding: 0 !important;
+
+                font-size: 21px;
+                line-height: 1;
+                flex-shrink: 0;
+            }
+
+            #currentTitle {
+                font-size: 14px;
+            }
+
+            .toolbar-buttons {
+                gap: 4px;
+            }
+
+            .toolbar-buttons button {
+                padding: 7px 8px;
+                font-size: 12px;
             }
 
             .sidebar-header {
-                padding: 14px;
+                padding-top: calc(16px + env(safe-area-inset-top));
+                padding-right: 16px;
+                padding-bottom: 16px;
+                padding-left: 16px;
             }
 
             .sidebar-header h1 {
-                font-size: 18px;
+                font-size: 19px;
             }
 
             .game-button {
-                padding: 11px;
+                padding: 12px;
+                font-size: 14px;
+            }
+        }
+
+        @media (max-width: 430px) {
+            .toolbar-buttons .new-window-button {
+                display: none;
+            }
+
+            #currentTitle {
                 font-size: 13px;
             }
         }
@@ -179,24 +329,62 @@
 <body>
 <div class="app">
 
-    <aside class="sidebar">
+    <!-- 왼쪽 게임 목록 -->
+    <aside id="sidebar" class="sidebar">
         <div class="sidebar-header">
             <h1>게임 목록</h1>
             <p id="repositoryName">HTML 게임을 불러오는 중입니다.</p>
         </div>
 
         <ul id="gameList">
-            <li class="status">목록을 불러오는 중...</li>
+            <li class="status">
+                목록을 불러오는 중입니다.
+            </li>
         </ul>
     </aside>
 
+    <!-- 모바일에서 메뉴 바깥을 누르면 닫기 -->
+    <div
+        id="sidebarOverlay"
+        class="sidebar-overlay"
+        onclick="closeSidebar()"
+    ></div>
+
+    <!-- 게임 실행 영역 -->
     <main class="content">
+
         <div class="toolbar">
-            <span id="currentTitle">왼쪽에서 게임을 선택하세요.</span>
+            <div class="toolbar-title">
+
+                <button
+                    class="mobile-menu-button"
+                    type="button"
+                    aria-label="게임 목록 열기"
+                    onclick="toggleSidebar()"
+                >
+                    ☰
+                </button>
+
+                <span id="currentTitle">
+                    게임을 선택하세요.
+                </span>
+            </div>
 
             <div class="toolbar-buttons">
-                <button type="button" onclick="reloadGame()">새로고침</button>
-                <button type="button" onclick="openNewWindow()">새 창</button>
+                <button
+                    type="button"
+                    onclick="reloadGame()"
+                >
+                    새로고침
+                </button>
+
+                <button
+                    class="new-window-button"
+                    type="button"
+                    onclick="openNewWindow()"
+                >
+                    새 창
+                </button>
             </div>
         </div>
 
@@ -204,17 +392,15 @@
             id="gameFrame"
             title="게임 실행 화면"
             allow="autoplay; fullscreen; gamepad; clipboard-read; clipboard-write"
-            allowfullscreen>
-        </iframe>
-    </main>
+            allowfullscreen
+        ></iframe>
 
+    </main>
 </div>
 
 <script>
     /*
-     * GitHub 저장소 정보
-     *
-     * 현재 저장소가 다음과 같다면:
+     * 저장소 주소:
      * https://github.com/kei-soft/muttisu-game
      */
     const OWNER = "kei-soft";
@@ -222,11 +408,10 @@
     const BRANCH = "main";
 
     /*
-     * HTML 파일이 저장된 폴더입니다.
-     * 루트에 있으면 빈 문자열로 둡니다.
+     * HTML 파일이 루트에 있으면 빈 문자열로 둡니다.
      *
-     * 예:
-     * games 폴더 안에 있다면 "games"
+     * games 폴더 안에 있다면:
+     * const HTML_DIRECTORY = "games";
      */
     const HTML_DIRECTORY = "";
 
@@ -235,16 +420,26 @@
     const currentTitle = document.getElementById("currentTitle");
     const repositoryName = document.getElementById("repositoryName");
 
+    const sidebar = document.getElementById("sidebar");
+    const sidebarOverlay = document.getElementById("sidebarOverlay");
+
     let currentGameUrl = "";
+    let htmlFiles = [];
 
     repositoryName.textContent = `${OWNER}/${REPOSITORY}`;
 
     /**
-     * GitHub API에서 HTML 파일 목록 가져오기
+     * GitHub API에서 HTML 파일 목록을 가져옵니다.
      */
     async function loadGameList() {
-        const directoryPath = HTML_DIRECTORY
-            ? `/${encodeURIComponent(HTML_DIRECTORY)}`
+        const encodedDirectory = HTML_DIRECTORY
+            .split("/")
+            .filter(Boolean)
+            .map(part => encodeURIComponent(part))
+            .join("/");
+
+        const directoryPath = encodedDirectory
+            ? `/${encodedDirectory}`
             : "";
 
         const apiUrl =
@@ -271,17 +466,21 @@
                 throw new Error("파일 목록 형식이 올바르지 않습니다.");
             }
 
-            const htmlFiles = files
+            htmlFiles = files
                 .filter(file =>
                     file.type === "file" &&
                     file.name.toLowerCase().endsWith(".html") &&
                     file.name.toLowerCase() !== "index.html"
                 )
                 .sort((a, b) =>
-                    a.name.localeCompare(b.name, "ko", {
-                        numeric: true,
-                        sensitivity: "base"
-                    })
+                    a.name.localeCompare(
+                        b.name,
+                        "ko",
+                        {
+                            numeric: true,
+                            sensitivity: "base"
+                        }
+                    )
                 );
 
             renderGameList(htmlFiles);
@@ -292,14 +491,15 @@
             gameListElement.innerHTML = `
                 <li class="status">
                     게임 목록을 불러오지 못했습니다.<br><br>
-                    OWNER, REPOSITORY, BRANCH 설정을 확인해 주세요.
+                    OWNER, REPOSITORY, BRANCH 설정과<br>
+                    GitHub Pages 설정을 확인해 주세요.
                 </li>
             `;
         }
     }
 
     /**
-     * 왼쪽 게임 목록 출력
+     * 왼쪽에 게임 목록을 출력합니다.
      */
     function renderGameList(files) {
         gameListElement.innerHTML = "";
@@ -313,7 +513,7 @@
             return;
         }
 
-        files.forEach((file, index) => {
+        files.forEach(file => {
             const item = document.createElement("li");
             item.className = "game-item";
 
@@ -329,18 +529,41 @@
 
             item.appendChild(button);
             gameListElement.appendChild(item);
-
-            /*
-             * 첫 번째 게임을 페이지 접속 시 자동 실행
-             */
-            if (index === 0) {
-                selectGame(file, button);
-            }
         });
+
+        openInitialGame(files);
     }
 
     /**
-     * 게임 선택 및 iframe 실행
+     * 주소의 #값에 게임 파일이 있으면 해당 게임을 실행하고,
+     * 없으면 첫 번째 게임을 실행합니다.
+     */
+    function openInitialGame(files) {
+        const hashPath = decodeURIComponent(
+            window.location.hash.replace(/^#/, "")
+        );
+
+        let targetFile = null;
+
+        if (hashPath) {
+            targetFile = files.find(file => file.path === hashPath);
+        }
+
+        if (!targetFile) {
+            targetFile = files[0];
+        }
+
+        const targetButton = document.querySelector(
+            `.game-button[data-path="${escapeSelector(targetFile.path)}"]`
+        );
+
+        if (targetButton) {
+            selectGame(targetFile, targetButton);
+        }
+    }
+
+    /**
+     * 선택한 게임을 iframe 안에서 실행합니다.
      */
     function selectGame(file, selectedButton) {
         document
@@ -350,7 +573,7 @@
         selectedButton.classList.add("active");
 
         /*
-         * GitHub Pages 내부의 상대 경로로 실행합니다.
+         * GitHub Pages의 현재 경로를 기준으로 실행합니다.
          * 한글 파일명도 encodeURI로 처리합니다.
          */
         const gameUrl = encodeURI(file.path);
@@ -359,22 +582,25 @@
         currentTitle.textContent = makeDisplayName(file.name);
         gameFrame.src = gameUrl;
 
-        /*
-         * 선택한 게임을 주소의 # 부분에 저장
-         */
         history.replaceState(
             null,
             "",
             `#${encodeURIComponent(file.path)}`
         );
+
+        /*
+         * 모바일에서는 게임 선택 후 목록을 자동으로 닫습니다.
+         */
+        if (window.innerWidth <= 700) {
+            closeSidebar();
+        }
     }
 
     /**
-     * 파일명을 화면용 이름으로 변경
+     * 파일명을 보기 좋은 이름으로 변환합니다.
      *
-     * 예:
-     * 좀비서바이벌.html → 좀비서바이벌
-     * 폭탄_도시_파괴.html → 폭탄 도시 파괴
+     * 폭탄_도시_파괴.html
+     * → 폭탄 도시 파괴
      */
     function makeDisplayName(fileName) {
         return fileName
@@ -383,7 +609,29 @@
     }
 
     /**
-     * 현재 게임 새로고침
+     * 모바일 게임 목록 열기/닫기
+     */
+    function toggleSidebar() {
+        const isOpen = sidebar.classList.toggle("open");
+
+        sidebarOverlay.classList.toggle("open", isOpen);
+
+        document.body.style.overflow = isOpen
+            ? "hidden"
+            : "";
+    }
+
+    /**
+     * 모바일 게임 목록 닫기
+     */
+    function closeSidebar() {
+        sidebar.classList.remove("open");
+        sidebarOverlay.classList.remove("open");
+        document.body.style.overflow = "";
+    }
+
+    /**
+     * 현재 게임을 새로고침합니다.
      */
     function reloadGame() {
         if (!currentGameUrl) {
@@ -392,21 +640,57 @@
 
         gameFrame.src = "about:blank";
 
-        setTimeout(() => {
+        window.setTimeout(() => {
             gameFrame.src = currentGameUrl;
         }, 50);
     }
 
     /**
-     * 현재 게임을 새 창으로 열기
+     * 현재 게임을 새 창으로 엽니다.
      */
     function openNewWindow() {
         if (!currentGameUrl) {
             return;
         }
 
-        window.open(currentGameUrl, "_blank", "noopener");
+        window.open(
+            currentGameUrl,
+            "_blank",
+            "noopener,noreferrer"
+        );
     }
+
+    /**
+     * CSS 선택자에 사용할 문자열을 안전하게 처리합니다.
+     */
+    function escapeSelector(value) {
+        if (window.CSS && typeof CSS.escape === "function") {
+            return CSS.escape(value);
+        }
+
+        return value.replace(
+            /["\\]/g,
+            "\\$&"
+        );
+    }
+
+    /**
+     * ESC 키를 누르면 모바일 메뉴를 닫습니다.
+     */
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+            closeSidebar();
+        }
+    });
+
+    /**
+     * 모바일 메뉴가 열린 상태에서 PC 크기로 변경되면 초기화합니다.
+     */
+    window.addEventListener("resize", () => {
+        if (window.innerWidth > 700) {
+            closeSidebar();
+        }
+    });
 
     loadGameList();
 </script>
