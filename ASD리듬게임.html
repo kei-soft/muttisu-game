@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASD RHYTHM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070611;
+    --lane-a:#ff2e7e;
+    --lane-s:#16e0ff;
+    --lane-d:#b14bff;
+    --ink:#e8ecff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;background:var(--bg);overflow:hidden;font-family:'Rajdhani',sans-serif;}
+  body{
+    display:flex;align-items:center;justify-content:center;
+    background:
+      radial-gradient(circle at 20% 0%, rgba(177,75,255,.18), transparent 45%),
+      radial-gradient(circle at 80% 100%, rgba(22,224,255,.15), transparent 45%),
+      var(--bg);
+  }
+  #wrap{
+    position:relative;width:420px;height:760px;max-height:100vh;
+    border-radius:20px;overflow:hidden;
+    box-shadow:0 0 0 1px rgba(255,255,255,.06), 0 30px 80px rgba(0,0,0,.6);
+    background:#050410;
+  }
+  canvas{display:block;width:100%;height:100%;}
+
+  /* overlay screens */
+  .screen{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;
+    color:var(--ink);gap:14px;padding:26px;
+    background:rgba(5,4,16,.82);backdrop-filter:blur(6px);
+    transition:opacity .35s ease;z-index:5;
+  }
+  .hidden{opacity:0;pointer-events:none;}
+  h1{
+    font-family:'Orbitron',sans-serif;font-weight:900;font-size:46px;letter-spacing:4px;
+    line-height:1;
+    background:linear-gradient(90deg,var(--lane-a),var(--lane-s),var(--lane-d));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 40px rgba(177,75,255,.4);
+  }
+  .sub{font-size:17px;opacity:.7;letter-spacing:2px;text-transform:uppercase;}
+  .keys{display:flex;gap:14px;margin:6px 0;}
+  .keycap{
+    width:64px;height:64px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    font-family:'Orbitron',sans-serif;font-weight:700;font-size:26px;
+    border:2px solid currentColor;
+  }
+  .keycap.a{color:var(--lane-a);}
+  .keycap.s{color:var(--lane-s);}
+  .keycap.d{color:var(--lane-d);}
+  .btn{
+    margin-top:6px;font-family:'Orbitron',sans-serif;font-weight:700;font-size:18px;letter-spacing:3px;
+    padding:16px 46px;border:none;border-radius:50px;cursor:pointer;color:#070611;
+    background:linear-gradient(90deg,var(--lane-s),var(--lane-d));
+    box-shadow:0 0 30px rgba(22,224,255,.5);transition:transform .15s, box-shadow .15s;
+  }
+  .btn:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 0 45px rgba(177,75,255,.7);}
+  .stat-row{display:flex;gap:30px;font-family:'Orbitron',sans-serif;}
+  .stat{display:flex;flex-direction:column;gap:4px;}
+  .stat .v{font-size:30px;font-weight:700;}
+  .stat .l{font-size:12px;opacity:.6;letter-spacing:2px;}
+  .grade{font-family:'Orbitron',sans-serif;font-size:88px;font-weight:900;line-height:1;}
+  .hint{font-size:14px;opacity:.5;}
+  .diff-select{display:flex;gap:10px;margin:4px 0;}
+  .select-group{display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .select-label{font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:3px;opacity:.5;}
+  .diff-btn{
+    font-family:'Orbitron',sans-serif;font-weight:700;font-size:14px;letter-spacing:2px;
+    padding:10px 20px;border-radius:10px;cursor:pointer;
+    background:transparent;color:rgba(232,236,255,.55);
+    border:2px solid rgba(232,236,255,.2);transition:all .18s;
+  }
+  .diff-btn:hover{color:var(--ink);border-color:rgba(232,236,255,.5);}
+  .diff-btn.active{
+    color:#070611;border-color:transparent;
+    background:linear-gradient(90deg,var(--lane-a),var(--lane-d));
+    box-shadow:0 0 24px rgba(177,75,255,.5);
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+
+  <!-- START -->
+  <div class="screen" id="startScreen">
+    <h1>ASD<br>RHYTHM</h1>
+    <div class="sub">3-lane neon beat</div>
+    <div class="keys">
+      <div class="keycap a">A</div>
+      <div class="keycap s">S</div>
+      <div class="keycap d">D</div>
+    </div>
+    <div class="hint">노트가 라인에 닿는 순간 A · S · D 를 누르세요</div>
+    <div class="select-group">
+      <div class="select-label">박자 / BEAT</div>
+      <div class="diff-select" id="beatSelect">
+        <button class="diff-btn" data-beat="2">2박자</button>
+        <button class="diff-btn active" data-beat="4">4박자</button>
+        <button class="diff-btn" data-beat="8">8박자</button>
+      </div>
+    </div>
+    <div class="select-group">
+      <div class="select-label">난이도 / DIFFICULTY</div>
+      <div class="diff-select" id="diffSelect">
+        <button class="diff-btn" data-diff="EASY">EASY</button>
+        <button class="diff-btn active" data-diff="NORMAL">NORMAL</button>
+        <button class="diff-btn" data-diff="HARD">HARD</button>
+      </div>
+    </div>
+    <button class="btn" id="startBtn">START</button>
+  </div>
+
+  <!-- RESULT -->
+  <div class="screen hidden" id="resultScreen">
+    <div class="grade" id="grade">S</div>
+    <div class="stat-row">
+      <div class="stat"><span class="v" id="rScore">0</span><span class="l">SCORE</span></div>
+      <div class="stat"><span class="v" id="rCombo">0</span><span class="l">MAX COMBO</span></div>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><span class="v" style="color:var(--lane-s)" id="rPerfect">0</span><span class="l">PERFECT</span></div>
+      <div class="stat"><span class="v" style="color:#ffd84a" id="rGood">0</span><span class="l">GOOD</span></div>
+      <div class="stat"><span class="v" style="color:var(--lane-a)" id="rMiss">0</span><span class="l">MISS</span></div>
+    </div>
+    <button class="btn" id="retryBtn">RETRY</button>
+  </div>
+</div>
+
+<script>
+const cv = document.getElementById('game');
+const ctx = cv.getContext('2d');
+const W = 420, H = 760;
+// crisp rendering on hi-dpi
+const dpr = Math.min(window.devicePixelRatio || 1, 2);
+cv.width = W*dpr; cv.height = H*dpr; ctx.scale(dpr,dpr);
+
+const LANE_W = 120;
+// 3 lanes centered: 30 margin + 120*3 = 390, fits within 420
+const LANES = [
+  {key:'a', x:30,  color:'#ff2e7e', label:'A'},
+  {key:'s', x:150, color:'#16e0ff', label:'S'},
+  {key:'d', x:270, color:'#b14bff', label:'D'},
+];
+const HIT_Y = H - 110;          // judgement line
+
+// difficulty presets
+const DIFFICULTIES = {
+  EASY:   {speed:0.30, bpm:100, perfect:65, good:135, density:0.6, doubles:0,    label:'EASY'},
+  NORMAL: {speed:0.42, bpm:130, perfect:55, good:110, density:1.0, doubles:0.18, label:'NORMAL'},
+  HARD:   {speed:0.58, bpm:160, perfect:42, good:85,  density:1.4, doubles:0.32, label:'HARD'},
+};
+let DIFF = DIFFICULTIES.NORMAL;
+let NOTE_SPEED = DIFF.speed;     // px per ms
+let PERFECT_WIN = DIFF.perfect;  // judgement window (px)
+let GOOD_WIN = DIFF.good;
+const TRAVEL = HIT_Y + 60;      // spawn above screen
+const SPAWN_OFFSET = HIT_Y / NOTE_SPEED; // ms note needs to fall
+
+// ----- audio (simple synth, no files needed) -----
+let actx;
+// per-lane base notes (A=low, S=mid, D=high) — a pleasant triad
+const LANE_TONE = [
+  {hit:392.00, perfect:783.99}, // A: G4 / G5
+  {hit:523.25, perfect:1046.50},// S: C5 / C6
+  {hit:659.25, perfect:1318.51},// D: E5 / E6
+  {empty:174.61}                // miss-air click base
+];
+
+// richer note with a soft envelope + harmonic for a "bell" feel
+function playNote(freq, dur=0.18, gain=0.2, type='triangle'){
+  if(!actx) return;
+  const t=actx.currentTime;
+  const o=actx.createOscillator(), o2=actx.createOscillator(), g=actx.createGain();
+  o.type=type; o.frequency.value=freq;
+  o2.type='sine'; o2.frequency.value=freq*2; // shimmer harmonic
+  const g2=actx.createGain(); g2.gain.value=0.35;
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(gain,t+0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g); o2.connect(g2); g2.connect(g); g.connect(actx.destination);
+  o.start(t); o2.start(t); o.stop(t+dur); o2.stop(t+dur);
+}
+
+// ----- generate a beat chart (procedural) -----
+function buildChart(){
+  const chart=[];
+  const bpm=DIFF.bpm, beat=60000/bpm; // ms per beat
+  let t=1400; // lead-in
+  const bars=42;
+
+  // avoid the same lane repeating too many times in a row (max 2)
+  let lastLane=-1, repeat=0;
+  function pickLane(){
+    let lane=Math.floor(Math.random()*3);
+    if(lane===lastLane && repeat>=2){
+      // force a different lane
+      lane=(lane + 1 + Math.floor(Math.random()*2))%3;
+    }
+    repeat = (lane===lastLane) ? repeat+1 : 1;
+    lastLane=lane;
+    return lane;
+  }
+
+  for(let i=0;i<bars;i++){
+    // chosen beat = main body pattern; gentle intro + easy ending kept
+    let sub;
+    if(i<4)            sub=SUBDIVISIONS[2];        // gentle intro
+    else if(i>=bars-4) sub=SUBDIVISIONS[2];        // easy ending
+    else               sub=SUBDIVISIONS[selectedBeat]; // chosen beat
+    const inBody = (i>=4 && i<bars-4);
+    sub.forEach((s,idx)=>{
+      // density controls how many notes actually spawn
+      if(Math.random() > DIFF.density) return;
+      if(i<4 && Math.random()<.35) return;
+      // thin out notes during the ending so it's easier
+      if(i>=bars-4 && Math.random()<.25) return;
+      const lane = pickLane();
+      chart.push({time:t + s*beat, lane});
+      // doubles only in the body, and only for the busier 8-beat pattern
+      if(inBody && selectedBeat>=8 && Math.random()<DIFF.doubles){
+        let l2=(lane+1+Math.floor(Math.random()*2))%3;
+        chart.push({time:t+s*beat, lane:l2});
+      }
+    });
+    t += beat*4;
+  }
+  chart.sort((a,b)=>a.time-b.time);
+  return chart;
+}
+
+// ----- game state -----
+let state='start';
+let notes=[], startTime=0, lastSpawnIdx=0;
+let score=0, combo=0, maxCombo=0;
+let counts={perfect:0,good:0,miss:0};
+let laneFlash=[0,0,0];     // glow timers
+let hitFx=[];              // pop effects
+let totalNotes=0;
+
+function resetGame(){
+  notes = buildChart().map(n=>({...n, hit:false, dead:false}));
+  totalNotes = notes.length;
+  startTime = performance.now();
+  lastSpawnIdx=0; score=0; combo=0; maxCombo=0;
+  counts={perfect:0,good:0,miss:0}; hitFx=[]; laneFlash=[0,0,0];
+}
+
+function startGame(){
+  if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
+  applyDifficulty();
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('resultScreen').classList.add('hidden');
+  resetGame();
+  state='play';
+}
+
+// judging a key press
+function press(laneIdx){
+  if(state!=='play') return;
+  laneFlash[laneIdx]=1;
+  const now = performance.now()-startTime;
+  // find closest unhit note in this lane near the line
+  let best=null, bestDist=Infinity;
+  for(const n of notes){
+    if(n.hit||n.dead||n.lane!==laneIdx) continue;
+    const dist = Math.abs(n.time - now);
+    if(dist<bestDist){bestDist=dist; best=n;}
+  }
+  const distPx = bestDist*NOTE_SPEED;
+  const tone = LANE_TONE[laneIdx];
+  if(best && distPx<=GOOD_WIN){
+    best.hit=true; best.dead=true;
+    if(distPx<=PERFECT_WIN){
+      counts.perfect++; score+=300; combo++;
+      playNote(tone.perfect, 0.22, 0.22, 'triangle');
+      addFx(laneIdx,'PERFECT', LANES[laneIdx].color);
+    }else{
+      counts.good++; score+=150; combo++;
+      playNote(tone.hit, 0.16, 0.18, 'sine');
+      addFx(laneIdx,'GOOD', '#ffd84a');
+    }
+    maxCombo=Math.max(maxCombo,combo);
+    score += combo*2;
+  }else{
+    // empty hit — quiet lane-flavored click, no penalty to combo
+    playNote(tone.hit*0.5, 0.06, 0.06, 'square');
+  }
+}
+
+function addFx(laneIdx,text,color){
+  hitFx.push({x:LANES[laneIdx].x+LANE_W/2, y:HIT_Y, text, color, life:1});
+}
+
+// ----- main loop -----
+function loop(){
+  ctx.clearRect(0,0,W,H);
+  drawLanes();
+  if(state==='play') updatePlay();
+  drawHitLine();
+  drawNotes();
+  drawFx();
+  if(state==='play') drawHud();
+  requestAnimationFrame(loop);
+}
+
+function drawLanes(){
+  for(let i=0;i<3;i++){
+    const L=LANES[i];
+    const g=ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'rgba(255,255,255,0.015)');
+    g.addColorStop(1, hexA(L.color,0.07));
+    ctx.fillStyle=g;
+    ctx.fillRect(L.x,0,LANE_W,H);
+    // lane glow when flashed
+    if(laneFlash[i]>0){
+      ctx.fillStyle=hexA(L.color, laneFlash[i]*0.18);
+      ctx.fillRect(L.x,0,LANE_W,H);
+      laneFlash[i]=Math.max(0,laneFlash[i]-0.08);
+    }
+    // separators
+    ctx.strokeStyle='rgba(255,255,255,0.05)';
+    ctx.beginPath(); ctx.moveTo(L.x,0); ctx.lineTo(L.x,H); ctx.stroke();
+  }
+  ctx.beginPath(); ctx.moveTo(LANES[2].x+LANE_W,0); ctx.lineTo(LANES[2].x+LANE_W,H);
+  ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.stroke();
+}
+
+function drawHitLine(){
+  ctx.save();
+  ctx.strokeStyle='rgba(255,255,255,0.25)';
+  ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(LANES[0].x,HIT_Y); ctx.lineTo(LANES[2].x+LANE_W,HIT_Y); ctx.stroke();
+  // key targets
+  for(let i=0;i<3;i++){
+    const L=LANES[i], cx=L.x+LANE_W/2;
+    ctx.beginPath();
+    ctx.arc(cx,HIT_Y,26,0,Math.PI*2);
+    ctx.lineWidth=3;
+    ctx.strokeStyle=L.color;
+    ctx.shadowColor=L.color; ctx.shadowBlur=laneFlash[i]>0?25:8;
+    ctx.stroke();
+    ctx.shadowBlur=0;
+    ctx.fillStyle=L.color;
+    ctx.font='700 22px Orbitron';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(L.label,cx,HIT_Y+1);
+  }
+  ctx.restore();
+}
+
+function updatePlay(){
+  const now = performance.now()-startTime;
+  // mark misses
+  for(const n of notes){
+    if(!n.hit && !n.dead && (n.time - now)*NOTE_SPEED < -GOOD_WIN){
+      n.dead=true; counts.miss++; combo=0;
+    }
+  }
+  // end condition
+  const allDone = notes.every(n=>n.dead||n.hit);
+  if(allDone && now>1000) endGame();
+}
+
+function drawNotes(){
+  const now = performance.now()-startTime;
+  for(const n of notes){
+    if(n.dead && !n.hit) continue; // missed notes vanish
+    if(n.hit) continue;
+    const y = HIT_Y - (n.time-now)*NOTE_SPEED;
+    if(y< -40 || y>H+40) continue;
+    const L=LANES[n.lane], cx=L.x+LANE_W/2;
+    ctx.save();
+    ctx.shadowColor=L.color; ctx.shadowBlur=18;
+    ctx.fillStyle=L.color;
+    roundRect(cx-44,y-13,88,26,8); ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.fillStyle='rgba(255,255,255,0.85)';
+    roundRect(cx-44,y-13,88,5,3); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawFx(){
+  for(let i=hitFx.length-1;i>=0;i--){
+    const f=hitFx[i];
+    ctx.save();
+    ctx.globalAlpha=f.life;
+    ctx.fillStyle=f.color;
+    ctx.font='700 18px Orbitron';
+    ctx.textAlign='center';
+    ctx.fillText(f.text, f.x, f.y-50*(1-f.life)-20);
+    ctx.restore();
+    f.life-=0.04;
+    if(f.life<=0) hitFx.splice(i,1);
+  }
+}
+
+function drawHud(){
+  ctx.save();
+  ctx.fillStyle='var(--ink)';
+  ctx.fillStyle='#e8ecff';
+  ctx.textAlign='left';
+  ctx.font='700 16px Orbitron';
+  ctx.fillText('SCORE', 24, 36);
+  ctx.font='900 30px Orbitron';
+  ctx.fillText(String(score).padStart(6,'0'), 24, 66);
+
+  if(combo>1){
+    ctx.textAlign='right';
+    ctx.fillStyle='#16e0ff';
+    ctx.font='900 40px Orbitron';
+    ctx.fillText(combo, W-24, 54);
+    ctx.font='600 14px Rajdhani';
+    ctx.fillStyle='rgba(255,255,255,.6)';
+    ctx.fillText('COMBO', W-24, 72);
+  }
+  ctx.restore();
+}
+
+function endGame(){
+  state='result';
+  const acc = totalNotes? (counts.perfect + counts.good*0.5)/totalNotes : 0;
+  let grade='D', col='#ff2e7e';
+  if(acc>=0.95){grade='S';col='#16e0ff';}
+  else if(acc>=0.85){grade='A';col='#b14bff';}
+  else if(acc>=0.70){grade='B';col='#7CFC9B';}
+  else if(acc>=0.50){grade='C';col='#ffd84a';}
+  const g=document.getElementById('grade'); g.textContent=grade; g.style.color=col;
+  document.getElementById('rScore').textContent=score;
+  document.getElementById('rCombo').textContent=maxCombo;
+  document.getElementById('rPerfect').textContent=counts.perfect;
+  document.getElementById('rGood').textContent=counts.good;
+  document.getElementById('rMiss').textContent=counts.miss;
+  document.getElementById('resultScreen').classList.remove('hidden');
+}
+
+// helpers
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function hexA(hex,a){const n=parseInt(hex.slice(1),16);return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;}
+
+// input
+const keyMap={a:0,s:1,d:2};
+window.addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(k in keyMap){ e.preventDefault(); if(!e.repeat) press(keyMap[k]); }
+});
+// touch / click on lanes for mobile
+cv.addEventListener('pointerdown',e=>{
+  const rect=cv.getBoundingClientRect();
+  const x=(e.clientX-rect.left)*(W/rect.width);
+  if(x<LANES[1].x) press(0); else if(x<LANES[2].x) press(1); else press(2);
+});
+
+// difficulty + beat selection
+let selectedDiff='NORMAL';
+let selectedBeat=4;
+const SUBDIVISIONS = {
+  2: [0,2],
+  4: [0,1,2,3],
+  8: [0,0.5,1,1.5,2,2.5,3,3.5],
+};
+document.querySelectorAll('#diffSelect .diff-btn').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('#diffSelect .diff-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    selectedDiff=b.dataset.diff;
+  };
+});
+document.querySelectorAll('#beatSelect .diff-btn').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('#beatSelect .diff-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    selectedBeat=parseInt(b.dataset.beat,10);
+  };
+});
+
+function applyDifficulty(){
+  DIFF = DIFFICULTIES[selectedDiff];
+  NOTE_SPEED = DIFF.speed;
+  PERFECT_WIN = DIFF.perfect;
+  GOOD_WIN = DIFF.good;
+}
+
+document.getElementById('startBtn').onclick=startGame;
+document.getElementById('retryBtn').onclick=()=>{
+  // back to start screen so player can re-pick difficulty
+  document.getElementById('resultScreen').classList.add('hidden');
+  document.getElementById('startScreen').classList.remove('hidden');
+  state='start';
+};
+
+loop();
+</script>
+</body>
+</html>
