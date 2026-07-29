@@ -4,6 +4,7 @@
 
 **HTML GAME STATION** — 브라우저에서 바로 즐기는 11개의 아케이드 게임
 
+### [▶ 지금 바로 플레이](https://kei-soft.github.io/muttisu-game/)
 </div>
 
 ---
