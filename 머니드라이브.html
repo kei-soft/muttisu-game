@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>NEON DRIVE — 달리고, 벌고, 지른다</title>
+<style>
+  :root{
+    --bg:#0a0c14; --panel:#151827; --panel2:#1d2136;
+    --asphalt:#14161f; --line:#2a3050;
+    --cyan:#00e5ff; --gold:#ffd23f; --danger:#ff3b6b; --green:#7cff5a;
+    --ink:#eef2ff; --dim:#8a93b8;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+    font-family:"Trebuchet MS",Verdana,system-ui,sans-serif;user-select:none;touch-action:none}
+  #wrap{position:fixed;inset:0;display:flex;justify-content:center;background:#05060b}
+  #stage{position:relative;height:100%;width:100%;max-width:520px;box-shadow:0 0 60px rgba(0,0,0,.8)}
+  canvas{display:block;width:100%;height:100%;background:var(--asphalt)}
+
+  /* ---- HUD ---- */
+  #hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;padding:14px 14px 0}
+  .chip{background:rgba(21,24,39,.72);border:1px solid rgba(120,140,220,.25);
+    border-radius:12px;padding:7px 12px;backdrop-filter:blur(6px)}
+  .chip .lbl{font-size:10px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
+  .chip .val{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.05}
+  .val.gold{color:var(--gold);text-shadow:0 0 14px rgba(255,210,63,.5)}
+  .val.cyan{color:var(--cyan);text-shadow:0 0 14px rgba(0,229,255,.45)}
+  .bottomhint{text-align:center;padding:0 0 14px;font-size:12px;color:var(--dim)}
+
+  /* ---- Panels (menu/garage/gameover) ---- */
+  .overlay{position:absolute;inset:0;display:flex;flex-direction:column;
+    background:linear-gradient(180deg,rgba(5,6,11,.72),rgba(5,6,11,.94));
+    backdrop-filter:blur(3px);z-index:5}
+  .hidden{display:none!important}
+  .brand{padding:26px 20px 10px;text-align:center}
+  .brand h1{font-size:34px;font-weight:900;letter-spacing:.02em;line-height:1;
+    background:linear-gradient(90deg,var(--cyan),var(--green));-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 18px rgba(0,229,255,.35))}
+  .brand p{margin-top:8px;color:var(--dim);font-size:13px;letter-spacing:.03em}
+
+  .bankrow{display:flex;justify-content:center;gap:8px;align-items:baseline;margin-top:14px}
+  .bankrow .amt{font-size:26px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums;text-shadow:0 0 16px rgba(255,210,63,.4)}
+  .bankrow .cap{font-size:11px;letter-spacing:.16em;color:var(--dim);text-transform:uppercase}
+
+  .garage{flex:1;overflow-y:auto;padding:14px 14px 4px;-webkit-overflow-scrolling:touch;touch-action:pan-y}
+  .codebox{margin-top:8px;padding:16px 10px 24px;border-top:1px dashed rgba(120,140,220,.25)}
+  .codehint{font-size:11px;letter-spacing:.18em;color:var(--dim);text-align:center;margin-bottom:11px;text-transform:uppercase}
+  .coderow{display:flex;gap:8px}
+  .coderow input{flex:1;min-width:0;background:#0c0e18;border:1px solid rgba(120,140,220,.3);border-radius:10px;
+    color:var(--ink);font-size:15px;padding:12px;outline:none;font-family:inherit}
+  .coderow input:focus{border-color:var(--cyan);box-shadow:0 0 0 1px rgba(0,229,255,.35)}
+  .btn.code{flex:none;padding:12px 18px;font-size:13px;border-radius:10px;background:var(--cyan)}
+  .codemsg{font-size:12px;text-align:center;margin-top:9px;min-height:15px;font-weight:700}
+  .card{display:flex;align-items:center;gap:12px;background:var(--panel);
+    border:1px solid rgba(120,140,220,.16);border-radius:16px;padding:12px;margin-bottom:10px;transition:.15s}
+  .card.owned{border-color:rgba(124,255,90,.35)}
+  .card.equipped{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan),0 0 22px rgba(0,229,255,.18)}
+  .card.locked{opacity:.72}
+  .swatch{width:52px;height:70px;border-radius:9px;flex:none;position:relative;
+    background:#0c0e18;border:1px solid rgba(255,255,255,.06);overflow:hidden}
+  .swatch canvas{width:100%;height:100%;background:transparent}
+  .info{flex:1;min-width:0}
+  .info .nm{font-size:16px;font-weight:800}
+  .stats{display:flex;gap:10px;margin-top:6px}
+  .stat{flex:1}
+  .stat .k{font-size:9px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase}
+  .bar{height:6px;border-radius:4px;background:#222842;margin-top:3px;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:4px}
+  .bar.spd i{background:linear-gradient(90deg,var(--cyan),#7bdcff)}
+  .bar.ern i{background:linear-gradient(90deg,#b98cff,var(--gold))}
+  .act{flex:none;text-align:right}
+  .price{font-size:14px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}
+  .price.no{color:var(--danger)}
+  .tag{font-size:11px;font-weight:800;letter-spacing:.1em;padding:6px 12px;border-radius:20px}
+  .tag.eq{background:rgba(0,229,255,.14);color:var(--cyan)}
+  .tag.own{background:rgba(124,255,90,.14);color:var(--green)}
+
+  .btn{border:none;border-radius:14px;padding:15px;font-size:17px;font-weight:900;letter-spacing:.03em;
+    cursor:pointer;pointer-events:auto;transition:.12s;color:#06121a}
+  .btn:active{transform:translateY(1px) scale(.99)}
+  .btn.play{background:linear-gradient(90deg,var(--green),var(--cyan));box-shadow:0 8px 26px rgba(0,229,255,.28)}
+  .btn.buy{padding:10px 16px;font-size:13px;border-radius:12px;background:var(--gold)}
+  .btn.buy:disabled{background:#2a2f47;color:#5c6484;cursor:not-allowed}
+  .btn.ghost{background:rgba(255,255,255,.06);color:var(--ink);border:1px solid rgba(120,140,220,.22)}
+  .footer{padding:10px 14px calc(14px + env(safe-area-inset-bottom));display:flex;gap:10px}
+  .footer .btn{flex:1}
+  .seg{display:flex;gap:6px;background:rgba(255,255,255,.05);padding:5px;border-radius:12px;width:100%}
+  .seg button{flex:1;border:none;background:transparent;color:var(--dim);font-weight:800;
+    font-size:13px;padding:10px;border-radius:9px;cursor:pointer;pointer-events:auto;transition:.12s}
+  .seg button.on{background:var(--panel2);color:var(--ink);box-shadow:0 0 0 1px rgba(0,229,255,.35)}
+  #modeInfo{font-size:11px;color:var(--dim);text-align:center;line-height:1.5}
+
+  .go h2{font-size:30px;font-weight:900;text-align:center;color:var(--danger);text-shadow:0 0 20px rgba(255,59,107,.4)}
+  .runstats{display:flex;justify-content:center;gap:26px;margin:22px 0}
+  .runstats div{text-align:center}
+  .runstats .n{font-size:28px;font-weight:900;font-variant-numeric:tabular-nums}
+  .runstats .n.g{color:var(--gold)} .runstats .n.c{color:var(--cyan)}
+  .runstats .t{font-size:10px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase;margin-top:2px}
+  .gonote{text-align:center;color:var(--cyan);font-size:13px;font-weight:800;
+    margin:0 auto 12px;padding:9px 14px;max-width:320px;border-radius:12px;
+    background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.3)}
+  .center{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 22px}
+  .toast{position:absolute;top:74px;left:50%;transform:translateX(-50%);
+    background:rgba(255,210,63,.16);border:1px solid rgba(255,210,63,.4);color:var(--gold);
+    padding:8px 16px;border-radius:20px;font-weight:800;font-size:14px;opacity:0;transition:.25s;z-index:6}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage">
+  <canvas id="game"></canvas>
+
+  <!-- In-game HUD -->
+  <div id="hud" class="hidden">
+    <div class="top">
+      <div class="chip"><div class="lbl">거리</div><div class="val cyan" id="hDist">0 m</div></div>
+      <div class="chip" style="text-align:right"><div class="lbl">이번 판 수익</div><div class="val gold" id="hCash">₩0</div></div>
+    </div>
+    <div class="bottomhint" id="hHint">화면을 좌우로 밀어 방향 조종 · 차를 피하고 코인을 먹어요</div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- Garage / Menu -->
+  <div class="overlay" id="garage">
+    <div class="brand">
+      <h1>NEON DRIVE</h1>
+      <p>달릴수록 돈이 쌓이고, 돈이 쌓이면 더 빠른 차가 온다</p>
+      <div class="bankrow"><span class="amt" id="gBank">₩0</span><span class="cap">보유 자산</span></div>
+    </div>
+    <div class="garage" id="carList"></div>
+    <div class="footer" style="flex-direction:column;gap:9px">
+      <div class="seg" id="modeSeg">
+        <button data-m="endless" class="on">🛣️ 지구력 주행</button>
+        <button data-m="race">🏁 레이스</button>
+      </div>
+      <div id="modeInfo"></div>
+      <button class="btn play" id="startBtn">▶ 지구력 출발</button>
+    </div>
+  </div>
+
+  <!-- Game Over -->
+  <div class="overlay go hidden" id="gameover">
+    <div class="center">
+      <h2 id="goTitle">💥 충돌!</h2>
+      <div class="runstats">
+        <div id="oPlaceWrap" class="hidden"><div class="n c" id="oPlace">-</div><div class="t">순위</div></div>
+        <div><div class="n c" id="oDist">0</div><div class="t">미터</div></div>
+        <div><div class="n g" id="oCash">₩0</div><div class="t">획득</div></div>
+      </div>
+      <div id="goNote" class="gonote hidden"></div>
+      <div style="text-align:center;color:var(--dim);font-size:13px;margin-bottom:8px">
+        보유 자산 <b style="color:var(--gold)" id="oBank">₩0</b>
+      </div>
+    </div>
+    <div class="footer">
+      <button class="btn ghost" id="toGarage">🏁 차고</button>
+      <button class="btn play" id="retryBtn">↻ 다시 달리기</button>
+    </div>
+  </div>
+</div></div>
+
+<script>
+"use strict";
+/* ============================================================
+   NEON DRIVE — endless driver. Distance = money, money = cars.
+   Single-file vanilla JS + Canvas. Mobile: drag to steer.
+============================================================ */
+
+// ---- Cars: price / speed(주행+난이도) / earn(m당 수익 배수) / 외형 ----
+const CARS = [
+  {id:0, name:'딱정벌레', price:0,      speed:1.00, earn:1.0,  color:'#7cff5a', w:44, h:80, shape:'bug'},
+  {id:1, name:'해치백',   price:900,    speed:1.22, earn:1.5,  color:'#5ad1ff', w:46, h:84, shape:'hatch'},
+  {id:2, name:'세단',     price:3000,   speed:1.45, earn:2.1,  color:'#c08cff', w:48, h:90, shape:'sedan'},
+  {id:3, name:'핫로드',   price:8000,   speed:1.72, earn:3.0,  color:'#ffb24a', w:48, h:92, shape:'hotrod'},
+  {id:4, name:'머슬카',   price:16000,  speed:2.05, earn:4.2,  color:'#ff7a3b', w:50, h:96, shape:'muscle'},
+  {id:5, name:'스포츠카', price:40000,  speed:2.45, earn:6.0,  color:'#ff3b6b', w:48, h:98, shape:'sport'},
+  {id:6, name:'슈퍼카',   price:95000,  speed:2.95, earn:8.5,  color:'#ffd23f', w:48, h:100,shape:'super'},
+  {id:7, name:'하이퍼카', price:220000, speed:3.55, earn:12.0, color:'#00e5ff', w:46, h:104,shape:'hyper'},
+  {id:8, name:'최강머신', price:5000000, speed:4.7, earn:18.0, color:'#ff36f5', w:48, h:112,shape:'ultimate'},
+];
+
+const save = { bank: 0, owned:[0], equipped:0, raceLevel:1 };  // 세션 동안 유지
+const PX_PER_M = 9;                                 // 9px = 1m
+
+// ---- 레이스 모드 ----
+const RACE = { finish: 1500, prizes:[8000, 3500, 1500, 500] };
+const SLOW_DUR = 1.0;            // 레이스 충돌 시 감속 지속(초)
+const CPU_BUMP_CHANCE = 0.16;    // CPU가 초당 갑자기 감속할 확률
+let slowT = 0, hitFlash = 0;
+let mode = 'endless';            // 'endless' | 'race'
+let rivals = [];
+let placeCounter = 0;
+let playerFinished = false;
+
+// ---------- Canvas setup ----------
+const cvs = document.getElementById('game');
+const ctx = cvs.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2.5);
+  const r = cvs.getBoundingClientRect();
+  W = r.width; H = r.height;
+  cvs.width = Math.round(W*DPR); cvs.height = Math.round(H*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  layoutRoad();
+}
+window.addEventListener('resize', resize);
+
+// ---------- Road geometry ----------
+let roadX=0, roadW=0, laneW=0, LANES=4;
+function layoutRoad(){
+  roadW = Math.min(W*0.82, 460);
+  roadX = (W - roadW)/2;
+  laneW = roadW/LANES;
+}
+
+// ---------- Game state ----------
+let state='garage';          // garage | play | over
+let player=null, traffic=[], coins=[], dashes=[], sideLights=[], obstacles=[];
+let distPx, runCash, speedPx, spawnT, coinT, obsT, elapsed, targetX, shake;
+
+function newRun(){
+  const car = CARS[save.equipped];
+  player = { x: roadX+roadW/2, y: H*0.78, w:car.w, h:car.h, car };
+  targetX = player.x;
+  traffic=[]; coins=[]; sideLights=[]; obstacles=[];
+  dashes=[]; for(let y=-40;y<H+40;y+=64) dashes.push(y);
+  distPx=0; runCash=0; elapsed=0; spawnT=0.6; coinT=1.2; obsT=2.2; shake=0;
+  slowT=0; hitFlash=0;
+  speedPx = 250 * car.speed;
+
+  // 레이스 초기화
+  placeCounter=0; playerFinished=false;
+  if(mode==='race'){
+    const cpuMult = 1 + (save.raceLevel-1)*0.10;   // 우승할수록 CPU 가속
+    if(save.raceLevel===11){                        // 마지막 레이스: BOSS 1:1
+      rivals = [{ color:'#ff2d55', base:840, name:'BOSS', prog:0, done:false, place:0, slowT:0 }];
+      hHint.textContent='🏆 마지막 레이스 · BOSS와 1:1 대결!';
+    } else {
+      rivals = [
+        {color:'#4aa8ff', base:300},
+        {color:'#ff5a7a', base:335},
+        {color:'#8cff5a', base:368},
+      ].map((r,i)=>({ ...r, base:r.base*cpuMult, name:'CPU'+(i+1), prog:0, done:false, place:0, slowT:0 }));
+      hHint.textContent=`🏁 레이스 LV ${save.raceLevel} · 순위로 상금 획득!`;
+    }
+    obsT = save.raceLevel===1 ? 3.4 : 2.2;   // 첫 레이스는 장애물 늦게 시작
+  }else{
+    rivals=[];
+    hHint.textContent='화면을 좌우로 밀어 방향 조종 · 차를 피하고 코인을 먹어요';
+  }
+}
+
+// ---------- Spawning ----------
+function laneCenter(i){ return roadX + laneW*(i+0.5); }
+
+function spawnTraffic(){
+  const car = player.car;
+  const lane = Math.floor(Math.random()*LANES);
+  const pal = ['#3aa0ff','#ff5a7a','#a6ff5a','#ffd23f','#c08cff','#ff8f3b'];
+  const c = pal[(Math.random()*pal.length)|0];
+  const w = 42+Math.random()*8, h = 78+Math.random()*16;
+  // 상대속도: 플레이어보다 느리게 → 추월당해 화면 아래로 흐름
+  const rel = speedPx * (0.30 + Math.random()*0.28);
+  const shapes=['hatch','sedan','muscle','sport','bug'];
+  const shape=shapes[(Math.random()*shapes.length)|0];
+  traffic.push({ x:laneCenter(lane), y:-h-10, w, h, c, rel, shape });
+}
+function spawnCoin(){
+  const lane = Math.floor(Math.random()*LANES);
+  coins.push({ x:laneCenter(lane)+(Math.random()*30-15), y:-20, r:11, spin:Math.random()*6 });
+}
+function spawnObstacle(){
+  const t=['cone','oil','barrier'][(Math.random()*3)|0];
+  const lane=Math.floor(Math.random()*LANES);
+  let o={type:t, x:laneCenter(lane), hit:false};
+  if(t==='cone'){ o.w=18; o.h=24; }
+  else if(t==='oil'){ o.w=48; o.h=32; }
+  else { o.w=Math.min(laneW*1.3, roadW*0.5); o.h=16; }   // 바리케이드: 한쪽으로 피할 공간 남김
+  o.x=Math.max(roadX+o.w/2+2, Math.min(roadX+roadW-o.w/2-2, o.x));
+  o.y=-o.h-10;
+  obstacles.push(o);
+}
+// 레이스 충돌 감속(자동차/장애물 공용)
+function raceBump(px,py,txt){
+  slowT=SLOW_DUR; shake=0.7; hitFlash=1;
+  floaters.push({x:px, y:py-34, txt, color:'#ff5a7a', life:0.8});
+}
+
+// ---------- Input: drag to steer ----------
+let pointerActive=false;
+function pointerX(e){
+  const r = cvs.getBoundingClientRect();
+  const cx = (e.touches? e.touches[0].clientX : e.clientX) - r.left;
+  return cx;
+}
+function onDown(e){ if(state!=='play')return; pointerActive=true; targetX=pointerX(e); e.preventDefault(); }
+function onMove(e){ if(state!=='play'||!pointerActive)return; targetX=pointerX(e); e.preventDefault(); }
+function onUp(){ pointerActive=false; }
+cvs.addEventListener('touchstart',onDown,{passive:false});
+cvs.addEventListener('touchmove',onMove,{passive:false});
+cvs.addEventListener('touchend',onUp);
+cvs.addEventListener('mousedown',onDown);
+cvs.addEventListener('mousemove',onMove);
+window.addEventListener('mouseup',onUp);
+// 키보드(데스크톱 테스트용)
+const keys={};
+window.addEventListener('keydown',e=>{keys[e.key]=true});
+window.addEventListener('keyup',e=>{keys[e.key]=false});
+
+// ---------- Update ----------
+let last=performance.now();
+function loop(now){
+  let dt=(now-last)/1000; last=now; if(dt>0.05)dt=0.05;
+  if(state==='play') update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+function update(dt){
+  elapsed+=dt;
+  // 난이도/속도 램프: 60초에 걸쳐 1.0→1.45배
+  const ramp = 1 + Math.min(elapsed/60,1)*0.45;
+  let v = speedPx*ramp;
+  if(slowT>0){ slowT=Math.max(0,slowT-dt); v *= 1 - 0.6*(slowT/SLOW_DUR); } // 최대 40%까지 감속 후 회복
+  if(hitFlash>0) hitFlash=Math.max(0,hitFlash-dt*2);
+  distPx += v*dt;
+
+  // 수익: 거리 기반 + 램프 보정
+  const m = distPx/PX_PER_M;
+  runCash = Math.floor(m * player.car.earn * 1.15);
+
+  // 조향(키보드 대체)
+  if(keys['ArrowLeft']||keys['a']) targetX-=v*0.9*dt/1;
+  if(keys['ArrowRight']||keys['d']) targetX+=v*0.9*dt/1;
+  const half=player.w/2+4;
+  targetX = Math.max(roadX+half, Math.min(roadX+roadW-half, targetX));
+  // 부드러운 이징
+  player.x += (targetX-player.x)*Math.min(1, dt*11);
+
+  // 도로 대시
+  for(let i=0;i<dashes.length;i++){ dashes[i]+=v*dt; if(dashes[i]>H+40) dashes[i]-=(H+80); }
+  // 사이드 라이트(스피드감)
+  if(Math.random()<v*dt/120){ sideLights.push({side:Math.random()<.5?0:1,y:-10}); }
+  for(let i=sideLights.length-1;i>=0;i--){ sideLights[i].y+=v*1.15*dt; if(sideLights[i].y>H+20)sideLights.splice(i,1); }
+
+  // 트래픽 (레이스에서는 차 대신 장애물만)
+  spawnT-=dt;
+  const spawnGap = Math.max(0.42, 0.95 - elapsed*0.006);
+  if(mode!=='race' && spawnT<=0){ spawnTraffic(); spawnT=spawnGap*(0.7+Math.random()*0.7); }
+  for(let i=traffic.length-1;i>=0;i--){
+    const t=traffic[i]; t.y += (v - t.rel)*dt; // 플레이어가 더 빠르므로 느린 차는 화면 아래로 흐름
+    if(t.y>H+60){ traffic.splice(i,1); continue; }
+    if(!t.bumped && hit(player,t)){
+      if(mode==='race'){
+        // 리타이어 대신 감속 + 상대차 옆으로 튕겨 뒤로
+        t.bumped=true; t.rel=-v*0.35; t.x += (t.x<player.x?-26:26);
+        raceBump(player.x, player.y, '쿵! 감속');
+      }else{ crash(); return; }
+    }
+  }
+  // 코인
+  coinT-=dt;
+  if(coinT<=0){ if(Math.random()<0.7) spawnCoin(); coinT=0.75+Math.random()*0.9; }
+  for(let i=coins.length-1;i>=0;i--){
+    const c=coins[i]; c.y+=v*dt; c.spin+=dt*6;
+    if(c.y>H+30){ coins.splice(i,1); continue; }
+    const dx=c.x-player.x, dy=c.y-player.y;
+    if(Math.abs(dx)<player.w/2+c.r && Math.abs(dy)<player.h/2+c.r){
+      const bonus = 40*(save.equipped+1);
+      runCash += bonus; c.pop=1; coins.splice(i,1);
+      popCoin(c.x,c.y,bonus);
+    }
+  }
+  if(shake>0) shake=Math.max(0,shake-dt*3);
+
+  // 장애물 (레이스 전용)
+  if(mode==='race'){
+    obsT-=dt;
+    if(obsT<=0){
+      spawnObstacle();
+      const gap = Math.max(0.5, 1.9 - save.raceLevel*0.25);  // LV1 성김 → 레벨 오를수록 촘촘
+      obsT = gap*(0.7+Math.random()*0.6);
+    }
+    for(let i=obstacles.length-1;i>=0;i--){
+      const o=obstacles[i]; o.y+=v*dt;
+      if(o.y>H+40){ obstacles.splice(i,1); continue; }
+      if(!o.hit &&
+         Math.abs(o.x-player.x) < (o.w+player.w)/2 - 4 &&
+         Math.abs(o.y-player.y) < (o.h+player.h)/2 - 4){
+        o.hit=true;
+        raceBump(player.x, player.y, o.type==='oil'?'미끌!':'쿵!');
+      }
+    }
+  }
+
+  // HUD
+  hDist.textContent = Math.floor(m).toLocaleString()+' m';
+  hCash.textContent = '₩'+runCash.toLocaleString();
+
+  // ---- 레이스 진행 ----
+  if(mode==='race'){
+    for(const r of rivals){
+      if(r.done) continue;
+      // 가끔 부딪힌 것처럼 갑자기 감속
+      if(r.slowT>0) r.slowT=Math.max(0,r.slowT-dt);
+      else if(Math.random() < CPU_BUMP_CHANCE*dt) r.slowT=SLOW_DUR;
+      let rv = r.base*(0.93+Math.random()*0.14);
+      if(r.slowT>0) rv *= 1 - 0.6*(r.slowT/SLOW_DUR);
+      r.prog += rv*dt/PX_PER_M;
+      if(r.prog>=RACE.finish){ r.done=true; r.place=++placeCounter; }
+    }
+    if(!playerFinished && m>=RACE.finish){
+      playerFinished=true; finishRace(++placeCounter); return;
+    }
+    let rank=1; for(const r of rivals){ if(r.prog>m) rank++; }
+    hHint.textContent=`🏁 ${Math.max(0,Math.ceil(RACE.finish-m)).toLocaleString()}m 남음 · 현재 ${rank}위 / ${rivals.length+1}`;
+  }
+}
+
+function hit(a,b){
+  return Math.abs(a.x-b.x) < (a.w+b.w)/2 - 8 &&
+         Math.abs(a.y-b.y) < (a.h+b.h)/2 - 10;
+}
+
+// coin pop toast-ish floaters
+const floaters=[];
+function popCoin(x,y,v){ floaters.push({x,y,txt:'+'+v,color:'#ffd23f',life:0.7}); }
+
+// ---------- Render ----------
+function render(){
+  ctx.save();
+  if(shake>0){ ctx.translate((Math.random()-.5)*shake*10,(Math.random()-.5)*shake*10); }
+  // bg
+  ctx.fillStyle='#05060b'; ctx.fillRect(-20,-20,W+40,H+40);
+  // road
+  ctx.fillStyle='#14161f'; ctx.fillRect(roadX,0,roadW,H);
+  // road neon edges
+  edge(roadX); edge(roadX+roadW);
+  // lane dashes
+  ctx.lineWidth=4; ctx.strokeStyle='rgba(120,140,220,.35)'; ctx.setLineDash([26,34]);
+  for(let l=1;l<LANES;l++){ const x=roadX+laneW*l;
+    ctx.beginPath(); ctx.moveTo(x,-40); ctx.lineTo(x,H+40); ctx.stroke(); }
+  ctx.setLineDash([]);
+  // side speed lights
+  for(const s of sideLights){
+    const x = s.side? roadX+roadW+7 : roadX-7;
+    ctx.fillStyle='rgba(0,229,255,.5)'; ctx.fillRect(x-2,s.y,4,22);
+  }
+
+  if(state==='play'||state==='over'){
+    for(const c of coins) drawCoin(c);
+    for(const o of obstacles) drawObstacle(o);
+    for(const t of traffic) drawCar(t.x,t.y,t.w,t.h,t.c,true,t.shape);
+    if(player) drawCar(player.x,player.y,player.w,player.h,player.car.color,false,player.car.shape);
+    if(mode==='race' && player) drawLadder();
+    // floaters
+    for(let i=floaters.length-1;i>=0;i--){ const f=floaters[i]; f.y-=40*(1/60); f.life-=1/60;
+      ctx.globalAlpha=Math.max(0,Math.min(1,f.life*1.6)); ctx.fillStyle=f.color||'#ffd23f'; ctx.font='800 14px Verdana';
+      ctx.textAlign='center'; ctx.fillText(f.txt, f.x, f.y); ctx.globalAlpha=1;
+      if(f.life<=0)floaters.splice(i,1); }
+  }
+  if(hitFlash>0){ ctx.fillStyle=`rgba(255,60,90,${0.3*hitFlash})`; ctx.fillRect(-20,-20,W+40,H+40); }
+  ctx.restore();
+}
+function edge(x){
+  const g=ctx.createLinearGradient(x-6,0,x+6,0);
+  g.addColorStop(0,'rgba(0,229,255,0)'); g.addColorStop(.5,'rgba(0,229,255,.9)'); g.addColorStop(1,'rgba(0,229,255,0)');
+  ctx.fillStyle=g; ctx.fillRect(x-6,0,12,H);
+}
+function drawObstacle(o){
+  const g=ctx; g.save(); g.translate(o.x,o.y);
+  if(o.hit) g.globalAlpha=0.5;
+  if(o.type==='cone'){
+    g.fillStyle='#ff7a1a'; g.beginPath();
+    g.moveTo(0,-o.h/2); g.lineTo(o.w/2,o.h/2); g.lineTo(-o.w/2,o.h/2); g.closePath();
+    g.shadowColor='#ff7a1a'; g.shadowBlur=8; g.fill(); g.shadowBlur=0;
+    g.fillStyle='rgba(255,255,255,.9)'; g.fillRect(-o.w*0.34,-o.h*0.1,o.w*0.68,4);
+    g.fillStyle='rgba(0,0,0,.25)'; g.fillRect(-o.w/2,o.h/2-3,o.w,3);
+  } else if(o.type==='oil'){
+    g.fillStyle='rgba(18,20,30,.92)'; g.beginPath();
+    g.ellipse(0,0,o.w/2,o.h/2,0,0,7); g.fill();
+    g.strokeStyle='rgba(120,150,255,.35)'; g.lineWidth=2; g.stroke();
+    g.fillStyle='rgba(120,150,255,.18)'; g.beginPath(); g.ellipse(-4,-3,o.w*0.22,o.h*0.2,0,0,7); g.fill();
+  } else { // barrier
+    const n=Math.max(3,Math.round(o.w/12));
+    for(let i=0;i<n;i++){ g.fillStyle=(i%2)?'#ffcf33':'#e23b3b';
+      g.fillRect(-o.w/2+i*(o.w/n), -o.h/2, o.w/n+0.6, o.h); }
+    g.strokeStyle='rgba(0,0,0,.4)'; g.lineWidth=2; g.strokeRect(-o.w/2,-o.h/2,o.w,o.h);
+    g.shadowColor='rgba(255,80,80,.5)'; // subtle glow
+  }
+  g.restore();
+}
+function drawCoin(c){
+  ctx.save(); ctx.translate(c.x,c.y);
+  const sx=Math.abs(Math.cos(c.spin)); ctx.scale(sx*0.7+0.3,1);
+  ctx.beginPath(); ctx.arc(0,0,c.r,0,7); ctx.fillStyle='#ffd23f';
+  ctx.shadowColor='rgba(255,210,63,.8)'; ctx.shadowBlur=14; ctx.fill();
+  ctx.shadowBlur=0; ctx.fillStyle='#a9760a'; ctx.font='800 12px Verdana';
+  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('₩',0,1);
+  ctx.restore();
+}
+function drawLadder(){
+  const lx=W-18, top=96, bot=H-96, len=bot-top;
+  // track
+  ctx.fillStyle='rgba(255,255,255,.10)'; roundRect(lx-3,top,6,len,3); ctx.fill();
+  // finish (top) & start (bottom) marks
+  ctx.fillStyle='rgba(255,255,255,.8)'; ctx.fillRect(lx-8,top-2,16,3);
+  ctx.fillStyle='rgba(255,255,255,.25)'; ctx.fillRect(lx-6,bot,12,2);
+  ctx.font='800 9px Verdana'; ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,.7)';
+  ctx.fillText('🏁', lx, top-8);
+  const dot=(prog,color,big)=>{
+    const f=Math.min(1,prog/RACE.finish), y=bot-len*f;
+    ctx.beginPath(); ctx.arc(lx,y,big?7:5,0,7);
+    ctx.fillStyle=color; ctx.shadowColor=color; ctx.shadowBlur=big?12:7; ctx.fill(); ctx.shadowBlur=0;
+    if(big){ ctx.lineWidth=2; ctx.strokeStyle='#fff'; ctx.stroke(); }
+  };
+  for(const r of rivals){
+    dot(r.prog, r.color, false);
+    if(r.slowT>0){ const f=Math.min(1,r.prog/RACE.finish), y=bot-len*f;
+      ctx.beginPath(); ctx.arc(lx,y,8,0,7);
+      ctx.strokeStyle='rgba(255,70,90,'+(r.slowT/SLOW_DUR)+')'; ctx.lineWidth=2; ctx.stroke(); }
+  }
+  dot(distPx/PX_PER_M, player.car.color, true);
+}
+function drawCar(x,y,w,h,color,isTraffic,shape){
+  ctx.save(); ctx.translate(x,y);
+  carArt(ctx, w, h, color, shape||'sedan', isTraffic);
+  ctx.restore();
+}
+// 차종별 실루엣을 직접 그린다 (게임 화면 + 차고 미리보기 공용)
+function carArt(g, w, h, color, shape, isTraffic){
+  const hw=w/2, hh=h/2;
+  const grad=()=>{ const gr=g.createLinearGradient(0,-hh,0,hh);
+    gr.addColorStop(0,shade(color,1.22)); gr.addColorStop(.55,color); gr.addColorStop(1,shade(color,0.58)); return gr; };
+  const glass='rgba(12,16,30,.9)';
+  const trim=shade(color,1.5);
+  g.lineJoin='round'; g.lineCap='round';
+  // 현재 path를 채우고(외곽 글로우 포함) 테두리
+  const body=()=>{
+    g.save(); g.shadowColor=color; g.shadowBlur=isTraffic?7:15; g.fillStyle=grad(); g.fill(); g.restore();
+    g.fillStyle=grad(); g.fill();
+    g.lineWidth=1.4; g.strokeStyle='rgba(255,255,255,.16)'; g.stroke();
+  };
+  const win=(x,y,ww,hh2,r)=>{ g.fillStyle=glass; rr(g,x,y,ww,hh2,r); g.fill(); };
+  const tyre=(cx,cy,ww,wh)=>{ g.fillStyle='#0a0b11'; rr(g,cx-ww/2,cy-wh/2,ww,wh,2); g.fill(); };
+
+  switch(shape){
+    case 'bug': {                                   // 딱정벌레: 둥글둥글
+      rr(g,-hw,-hh,w,h,Math.min(hw,hh)*0.72); body();
+      win(-hw+6,-hh+13,w-12,h*0.44,10);
+      break; }
+    case 'hatch': {                                 // 해치백: 짧고 각짐
+      rr(g,-hw,-hh+2,w,h-2,7); body();
+      win(-hw+6,-hh+9,w-12,h*0.38,5);
+      break; }
+    case 'sedan': {                                 // 세단: 3박스, 창 2개
+      rr(g,-hw,-hh,w,h,9); body();
+      win(-hw+6,-hh+11,w-12,h*0.19,4);
+      win(-hw+7,-hh+h*0.46,w-14,h*0.16,4);
+      break; }
+    case 'hotrod': {                                // 핫로드: 사이드 배기 + 후드 스쿠프 + 스트라이프
+      const bw=w*0.8;
+      rr(g,-bw/2,-hh,bw,h,6); body();
+      g.fillStyle='#cfd6e6';
+      rr(g,-hw,-hh+h*0.32,3.2,h*0.42,1.5); g.fill();
+      rr(g, hw-3.2,-hh+h*0.32,3.2,h*0.42,1.5); g.fill();
+      g.fillStyle='#0c0e16'; rr(g,-6,-hh+4,12,h*0.15,2); g.fill();
+      win(-bw/2+5,-hh+h*0.32,bw-10,h*0.28,5);
+      g.fillStyle=trim; rr(g,-3,-hh+h*0.64,6,h*0.32,2); g.fill();
+      break; }
+    case 'muscle': {                                // 머슬카: 듀얼 스트라이프 + 스쿠프 + 노출 휠
+      rr(g,-hw,-hh,w,h,7); body();
+      g.fillStyle=shade(color,1.55);
+      rr(g,-7,-hh+3,5,h-6,2); g.fill();
+      rr(g, 2,-hh+3,5,h-6,2); g.fill();
+      g.fillStyle='#0c0e16'; rr(g,-8,-hh+7,16,h*0.13,3); g.fill();
+      win(-hw+7,-hh+h*0.36,w-14,h*0.3,5);
+      tyre(-hw+2,-hh+h*0.22,6,h*0.2); tyre(hw-2,-hh+h*0.22,6,h*0.2);
+      tyre(-hw+2, hh-h*0.16,6,h*0.2); tyre(hw-2, hh-h*0.16,6,h*0.2);
+      break; }
+    case 'sport': {                                 // 스포츠카: 물방울 쿠페 + 립스포일러
+      g.beginPath();
+      g.moveTo(0,-hh);
+      g.quadraticCurveTo(hw,-hh*0.55, hw*0.86, hh*0.35);
+      g.quadraticCurveTo(hw*0.7, hh, 0, hh);
+      g.quadraticCurveTo(-hw*0.7, hh, -hw*0.86, hh*0.35);
+      g.quadraticCurveTo(-hw,-hh*0.55, 0,-hh);
+      g.closePath(); body();
+      g.fillStyle=glass; g.beginPath(); g.ellipse(0,-hh*0.05,w*0.28,h*0.24,0,0,7); g.fill();
+      g.fillStyle=shade(color,0.5); rr(g,-hw*0.62,hh-5,w*0.62,3.5,1.5); g.fill();
+      break; }
+    case 'super': {                                 // 슈퍼카: 초저상 각진 바디 + 대형 리어윙 + 사이드 인테이크
+      g.beginPath();
+      g.moveTo(0,-hh); g.lineTo(hw*0.5,-hh*0.7); g.lineTo(hw,-hh*0.05);
+      g.lineTo(hw,hh*0.8); g.lineTo(hw*0.7,hh); g.lineTo(-hw*0.7,hh);
+      g.lineTo(-hw,hh*0.8); g.lineTo(-hw,-hh*0.05); g.lineTo(-hw*0.5,-hh*0.7);
+      g.closePath(); body();
+      g.fillStyle='#0c0e16';
+      g.beginPath(); g.moveTo(-hw+2,-hh*0.05); g.lineTo(-hw+2,hh*0.4); g.lineTo(-hw+8,hh*0.2); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(hw-2,-hh*0.05); g.lineTo(hw-2,hh*0.4); g.lineTo(hw-8,hh*0.2); g.closePath(); g.fill();
+      g.fillStyle=glass; g.beginPath();
+      g.moveTo(0,-hh*0.45); g.lineTo(w*0.26,-hh*0.02); g.lineTo(0,hh*0.4); g.lineTo(-w*0.26,-hh*0.02); g.closePath(); g.fill();
+      g.fillStyle=shade(color,0.45); rr(g,-hw-4,hh-7,w+8,4,1.5); g.fill();
+      g.fillStyle='#0c0e16'; rr(g,-hw*0.5,hh-7,3,7,1); g.fill(); rr(g,hw*0.5-3,hh-7,3,7,1); g.fill();
+      break; }
+    case 'hyper': {                                 // 하이퍼카: F1형 뾰족코 + 트윈핀 + 발광 배기
+      g.beginPath();
+      g.moveTo(0,-hh); g.lineTo(hw*0.34,-hh*0.5); g.lineTo(hw*0.42,hh*0.15);
+      g.lineTo(hw,hh*0.62); g.lineTo(hw,hh); g.lineTo(-hw,hh);
+      g.lineTo(-hw,hh*0.62); g.lineTo(-hw*0.42,hh*0.15); g.lineTo(-hw*0.34,-hh*0.5);
+      g.closePath(); body();
+      g.fillStyle=shade(color,0.5); rr(g,-hw*0.7,-hh+2,w*0.7,3,1); g.fill();
+      g.fillStyle=glass; g.beginPath(); g.ellipse(0,-hh*0.12,w*0.16,h*0.2,0,0,7); g.fill();
+      g.fillStyle=trim; rr(g,-w*0.16,hh*0.2,4,h*0.34,1.5); g.fill(); rr(g,w*0.16-4,hh*0.2,4,h*0.34,1.5); g.fill();
+      g.fillStyle=shade(color,0.4); rr(g,-hw-3,hh-6,w+6,4,1.5); g.fill();
+      g.fillStyle='rgba(0,229,255,.95)'; g.shadowColor='#00e5ff'; g.shadowBlur=9;
+      rr(g,-7,hh-4,5,5,2); g.fill(); rr(g,2,hh-4,5,5,2); g.fill(); g.shadowBlur=0;
+      tyre(-hw+1,hh*0.42,5,h*0.2); tyre(hw-1,hh*0.42,5,h*0.2);
+      break; }
+    case 'ultimate': {                              // 최강머신: 초광폭 하이퍼 + 대형 윙 + 전면 발광
+      g.beginPath();
+      g.moveTo(0,-hh); g.lineTo(hw*0.3,-hh*0.55); g.lineTo(hw*0.5,hh*0.1);
+      g.lineTo(hw,hh*0.5); g.lineTo(hw,hh*0.9); g.lineTo(hw*0.6,hh);
+      g.lineTo(-hw*0.6,hh); g.lineTo(-hw,hh*0.9); g.lineTo(-hw,hh*0.5);
+      g.lineTo(-hw*0.5,hh*0.1); g.lineTo(-hw*0.3,-hh*0.55);
+      g.closePath(); body();
+      // 프론트 윙 (발광)
+      g.fillStyle='#fff'; g.shadowColor=color; g.shadowBlur=10;
+      rr(g,-hw*0.75,-hh+1,w*0.75,3,1); g.fill(); g.shadowBlur=0;
+      // 센터 스트라이프
+      g.fillStyle=trim; rr(g,-3,-hh*0.5,6,h*0.7,2); g.fill();
+      // 캐노피
+      g.fillStyle=glass; g.beginPath(); g.ellipse(0,-hh*0.12,w*0.17,h*0.19,0,0,7); g.fill();
+      // 트윈 핀
+      g.fillStyle=trim; rr(g,-w*0.2,hh*0.15,4,h*0.32,1.5); g.fill(); rr(g,w*0.2-4,hh*0.15,4,h*0.32,1.5); g.fill();
+      // 대형 리어윙
+      g.fillStyle=shade(color,0.5); rr(g,-hw-5,hh-8,w+10,5,2); g.fill();
+      g.fillStyle='#0c0e16'; rr(g,-hw*0.5,hh-8,3,8,1); g.fill(); rr(g,hw*0.5-3,hh-8,3,8,1); g.fill();
+      // 발광 배기 x3
+      g.fillStyle='rgba(255,54,245,.95)'; g.shadowColor='#ff36f5'; g.shadowBlur=10;
+      rr(g,-9,hh-4,5,5,2); g.fill(); rr(g,-2.5,hh-4,5,5,2); g.fill(); rr(g,4,hh-4,5,5,2); g.fill(); g.shadowBlur=0;
+      tyre(-hw+1,hh*0.4,5,h*0.2); tyre(hw-1,hh*0.4,5,h*0.2);
+      break; }
+    default: {
+      rr(g,-hw,-hh,w,h,9); body();
+      win(-hw+7,-hh+12,w-14,h*0.34,6);
+    }
+  }
+
+  // 라이트
+  const pointed = shape==='sport'||shape==='super'||shape==='hyper'||shape==='ultimate';
+  if(isTraffic){
+    g.fillStyle='rgba(255,70,70,.95)';
+    rr(g,-hw+5,hh-6,7,4,1.5); g.fill(); rr(g,hw-12,hh-6,7,4,1.5); g.fill();
+  }else{
+    g.fillStyle='rgba(255,246,214,.98)';
+    if(pointed){ rr(g,-w*0.22,-hh+h*0.14,6,4,1.5); g.fill(); rr(g,w*0.22-6,-hh+h*0.14,6,4,1.5); g.fill(); }
+    else{ rr(g,-hw+5,-hh+2,7,4,1.5); g.fill(); rr(g,hw-12,-hh+2,7,4,1.5); g.fill(); }
+    g.fillStyle='rgba(255,70,90,.85)'; rr(g,-hw*0.55,hh-5,w*0.55,3,1.5); g.fill();
+  }
+}
+function roundBody(x,y,w,h,r,color){
+  const g=ctx.createLinearGradient(x,y,x,y+h);
+  g.addColorStop(0,shade(color,1.15)); g.addColorStop(1,shade(color,0.7));
+  ctx.fillStyle=g; roundRect(x,y,w,h,r); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.15)'; ctx.lineWidth=1.5; ctx.stroke();
+}
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function shade(hex,f){
+  const n=parseInt(hex.slice(1),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  r=Math.min(255,r*f)|0; g=Math.min(255,g*f)|0; b=Math.min(255,b*f)|0;
+  return `rgb(${r},${g},${b})`;
+}
+
+// ---------- Crash / flow ----------
+function crash(){
+  const dm = Math.floor(distPx/PX_PER_M);
+  save.bank += runCash;
+  if(mode==='race') showOver('💥 리타이어', dm, runCash, 'DNF');
+  else              showOver('💥 충돌!',  dm, runCash, null);
+}
+function finishRace(place){
+  const dm = Math.floor(distPx/PX_PER_M);
+  let prize;
+  if(place===1){
+    prize = RACE.prizes[0] * Math.pow(2, save.raceLevel-1);   // 우승 상금은 레벨마다 2배
+  } else {
+    const prizeMult = 1 + (save.raceLevel-1)*0.2;
+    prize = Math.round((RACE.prizes[place-1]||0)*prizeMult/100)*100;
+  }
+  const total = runCash + prize;
+  save.bank += total;
+  const medal = ['🥇 1위','🥈 2위','🥉 3위','4위'][place-1] || place+'위';
+  let note=null;
+  if(place===1){
+    const clearedTen = (save.raceLevel===10);
+    const wasFinal = (save.raceLevel===11);
+    save.raceLevel++;
+    if(clearedTen)      note='🔓 LV10 클리어! 최강머신 해금 · ₩5,000,000';
+    else if(wasFinal)   note='🏆 최종 우승! 게임 클리어!';
+    else                note=`🔥 우승! 다음 레이스 LV ${save.raceLevel} · CPU↑ · 우승 상금 2배!`;
+  }
+  showOver(place===1?'🏁 우승!':'🏁 완주!', dm, total, medal, note);
+}
+function showOver(title, dist, cash, placeTxt, note){
+  state='over'; shake=1;
+  goTitle.textContent = title;
+  oDist.textContent = dist.toLocaleString();
+  oCash.textContent = '₩'+cash.toLocaleString();
+  oBank.textContent = '₩'+save.bank.toLocaleString();
+  const w=document.getElementById('oPlaceWrap');
+  if(placeTxt){ w.classList.remove('hidden'); document.getElementById('oPlace').textContent=placeTxt; }
+  else w.classList.add('hidden');
+  const n=document.getElementById('goNote');
+  if(note){ n.classList.remove('hidden'); n.textContent=note; } else n.classList.add('hidden');
+  hud.classList.add('hidden');
+  setTimeout(()=>{ gameover.classList.remove('hidden'); }, 260);
+}
+function startRun(){
+  gameover.classList.add('hidden'); garage.classList.add('hidden');
+  hud.classList.remove('hidden');
+  state='play'; last=performance.now(); newRun();
+}
+function openGarage(){
+  state='garage'; gameover.classList.add('hidden'); hud.classList.add('hidden');
+  garage.classList.remove('hidden'); renderGarage(); updateMode();
+}
+
+// ---------- Garage UI ----------
+const carList=document.getElementById('carList');
+function renderGarage(){
+  gBank.textContent='₩'+save.bank.toLocaleString();
+  carList.innerHTML='';
+  const maxSpd=CARS[CARS.length-1].speed, maxErn=CARS[CARS.length-1].earn;
+  CARS.forEach(car=>{
+    const owned=save.owned.includes(car.id), equipped=save.equipped===car.id;
+    const lockedFinal = (car.id===8 && save.raceLevel<=10);   // 최강머신: LV10 클리어 시 해금
+    const canBuy=save.bank>=car.price && !lockedFinal;
+    const el=document.createElement('div');
+    el.className='card'+(equipped?' equipped':owned?' owned':(lockedFinal||!canBuy?' locked':''));
+    el.innerHTML=`
+      <div class="swatch"><canvas width="52" height="70"></canvas></div>
+      <div class="info">
+        <div class="nm">${car.name}</div>
+        <div class="stats">
+          <div class="stat"><div class="k">속도</div><div class="bar spd"><i style="width:${(car.speed/maxSpd*100)|0}%"></i></div></div>
+          <div class="stat"><div class="k">수익</div><div class="bar ern"><i style="width:${(car.earn/maxErn*100)|0}%"></i></div></div>
+        </div>
+      </div>
+      <div class="act"></div>`;
+    // mini car preview
+    drawPreview(el.querySelector('canvas'), car);
+    const act=el.querySelector('.act');
+    if(equipped){ act.innerHTML='<span class="tag eq">장착됨</span>'; }
+    else if(owned){ const b=document.createElement('button'); b.className='btn ghost';
+      b.style.cssText='padding:8px 14px;font-size:13px;border-radius:12px';
+      b.textContent='장착'; b.onclick=()=>{save.equipped=car.id;renderGarage();}; act.appendChild(b); }
+    else if(lockedFinal){
+      act.innerHTML=`<div class="price no">₩${car.price.toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--dim);font-weight:700;margin-top:4px">🔒 레이스 LV10 클리어</div>`;
+    }
+    else {
+      const wrap=document.createElement('div');
+      wrap.innerHTML=`<div class="price ${canBuy?'':'no'}">₩${car.price.toLocaleString()}</div>`;
+      const b=document.createElement('button'); b.className='btn buy'; b.textContent='구매';
+      b.disabled=!canBuy;
+      b.onclick=()=>{ if(save.bank>=car.price){ save.bank-=car.price; save.owned.push(car.id);
+        save.equipped=car.id; toast(`${car.name} 구매 완료!`); renderGarage(); } };
+      wrap.appendChild(b); act.appendChild(wrap);
+    }
+    carList.appendChild(el);
+  });
+
+  // ── 코드 콘솔 (아래로 스크롤하면 등장) ──
+  const box=document.createElement('div');
+  box.className='codebox';
+  box.innerHTML=`
+    <div class="codehint">▾ 코드 입력</div>
+    <div class="coderow">
+      <input id="codeInput" type="text" placeholder="차 이름 입력 (예: 슈퍼카)" autocomplete="off" spellcheck="false" autocapitalize="off">
+      <button class="btn code" id="codeBtn">획득</button>
+    </div>
+    <div class="codemsg" id="codeMsg"></div>`;
+  carList.appendChild(box);
+  const input=box.querySelector('#codeInput');
+  const msg=box.querySelector('#codeMsg');
+  const apply=()=>{
+    const q=(input.value||'').trim().toLowerCase();
+    if(!q) return;
+    const car=CARS.find(c=>c.name.toLowerCase()===q || c.shape.toLowerCase()===q);
+    if(!car){ msg.style.color='var(--danger)'; msg.textContent='그런 이름의 차가 없어요'; return; }
+    const had=save.owned.includes(car.id);
+    if(!had) save.owned.push(car.id);
+    save.equipped=car.id;
+    toast(had?`${car.name} 장착!`:`${car.name} 획득!`);
+    renderGarage();
+  };
+  box.querySelector('#codeBtn').onclick=apply;
+  input.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); apply(); }});
+}
+function drawPreview(cv,car){
+  const c=cv.getContext('2d'); c.clearRect(0,0,cv.width,cv.height);
+  c.save(); c.translate(cv.width/2, cv.height/2+1);
+  carArt(c, 34, 54, car.color, car.shape, false);
+  c.restore();
+}
+function rr(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y);
+  c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
+
+// ---------- Toast ----------
+let toastT;
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg;
+  t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),1400); }
+
+// ---------- Buttons ----------
+const startBtn=document.getElementById('startBtn');
+const modeSeg=document.getElementById('modeSeg');
+const modeInfo=document.getElementById('modeInfo');
+function updateMode(){
+  modeSeg.querySelectorAll('button').forEach(b=>b.classList.toggle('on', b.dataset.m===mode));
+  if(mode==='race'){
+    startBtn.textContent = save.raceLevel===11 ? '🏆 마지막 레이스' : '🏁 레이스 출발';
+    const winPrize = RACE.prizes[0]*Math.pow(2, save.raceLevel-1);
+    if(save.raceLevel===11){
+      modeInfo.innerHTML=`🏆 <b style="color:var(--danger)">마지막 레이스</b> · 초고속 BOSS와 1:1<br>우승 상금 ₩${winPrize.toLocaleString()} · 이기면 게임 클리어!`;
+    }else if(save.raceLevel>11){
+      modeInfo.innerHTML=`레이스 <b style="color:var(--cyan)">LV ${save.raceLevel}</b> · 🏆 클리어 완료!<br>🥇 우승 상금 ₩${winPrize.toLocaleString()}`;
+    }else{
+      modeInfo.innerHTML=`${RACE.finish.toLocaleString()}m 스프린트 · 레이스 <b style="color:var(--cyan)">LV ${save.raceLevel}</b> / 11<br>🥇 우승 상금 ₩${winPrize.toLocaleString()} · 1위하면 CPU↑ & 다음 판 상금 2배`;
+    }
+  }else{
+    startBtn.textContent='▶ 지구력 출발';
+    modeInfo.textContent='멀리 달릴수록 돈이 쌓여요. 부딪히면 끝!';
+  }
+}
+modeSeg.querySelectorAll('button').forEach(b=>b.onclick=()=>{ mode=b.dataset.m; updateMode(); });
+
+startBtn.onclick=startRun;
+document.getElementById('retryBtn').onclick=startRun;
+document.getElementById('toGarage').onclick=openGarage;
+
+// ---------- Boot ----------
+resize(); renderGarage(); updateMode(); requestAnimationFrame(loop);
+</script>
+</body>
+</html>
