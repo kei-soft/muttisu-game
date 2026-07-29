@@ -4,8 +4,6 @@
 
 **HTML GAME STATION** — 브라우저에서 바로 즐기는 11개의 아케이드 게임
 
-<img src="docs/screenshots/arcade-money-drive.png" width="900" alt="물티슈 ARCADE">
-
 </div>
 
 ---
