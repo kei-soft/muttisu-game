@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>황혼의 밀밭</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=IBM+Plex+Sans+KR:wght@400;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0F1E26;
+    --panel:#162B35;
+    --panel-2:#1E3A46;
+    --line:#2C4E5C;
+    --soil:#3E2E24;
+    --wheat:#E8B84B;
+    --wheat-hi:#FFE9A8;
+    --sprout:#6FA85A;
+    --rose:#D94F70;
+    --text:#DCE9EE;
+    --dim:#7F9BA7;
+    --r:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--ink);
+    color:var(--text);
+    font-family:'IBM Plex Sans KR',system-ui,sans-serif;
+    overflow:hidden;
+  }
+  .wrap{display:flex;height:100dvh;gap:0}
+
+  /* ── 밭 ── */
+  .field{position:relative;flex:1;min-width:0;display:flex;flex-direction:column}
+  .hud{
+    display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
+    padding:16px 20px 10px;
+  }
+  .hud .brand{
+    font-family:'Jua',sans-serif;font-size:20px;letter-spacing:.5px;
+    color:var(--wheat);margin-right:auto;
+  }
+  .stat{display:flex;align-items:baseline;gap:7px}
+  .stat b{
+    font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:26px;
+    color:var(--wheat-hi);font-variant-numeric:tabular-nums;
+  }
+  .stat span{font-size:12px;color:var(--dim);letter-spacing:1px}
+  .stat.sm b{font-size:15px;color:var(--text)}
+
+  canvas{flex:1;display:block;width:100%;touch-action:none;cursor:crosshair}
+
+  .hint{
+    position:absolute;left:50%;bottom:18px;z-index:5;transform:translateX(-50%);
+    font-size:13px;color:var(--dim);pointer-events:none;
+    background:rgba(15,30,38,.7);padding:6px 14px;border-radius:99px;
+    transition:opacity .5s;
+  }
+
+  /* ── 상점 ── */
+  .shop{
+    width:352px;flex-shrink:0;background:var(--panel);
+    border-left:1px solid var(--line);
+    display:flex;flex-direction:column;
+  }
+  .grip{display:none}
+
+  .shop{transition:width .25s cubic-bezier(.22,.9,.3,1)}
+  .shop.folded{width:46px;overflow:hidden}
+  .shop.folded .shop-head{padding:14px 0;justify-content:center;border-bottom:none}
+  .shop.folded h2, .shop.folded #mute,
+  .shop.folded .topbar, .shop.folded .list, .shop.folded .foot{display:none}
+  .shop.folded #fold{transform:rotate(180deg)}
+
+  .shop-head{
+    padding:18px 20px 12px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:10px;
+  }
+  .shop-head h2{font-family:'Jua',sans-serif;font-weight:400;font-size:19px;margin:0;flex:1}
+  .icobtn{
+    background:none;border:1px solid var(--line);color:var(--dim);
+    border-radius:8px;width:32px;height:32px;font-size:14px;cursor:pointer;
+  }
+  .icobtn:hover{color:var(--text);border-color:var(--dim)}
+  .list{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:9px}
+
+  .card{
+    width:100%;text-align:left;background:var(--panel-2);
+    border:1px solid var(--line);border-left:3px solid var(--line);
+    border-radius:var(--r);padding:12px 14px;color:inherit;font:inherit;
+    cursor:pointer;transition:border-color .15s,transform .08s,background .15s;
+  }
+  .card:hover:not(:disabled){background:#24444F;border-left-color:var(--wheat)}
+  .card:active:not(:disabled){transform:scale(.985)}
+  .card:disabled{opacity:.45;cursor:not-allowed}
+  .card:focus-visible{outline:2px solid var(--wheat);outline-offset:2px}
+  .card .top{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .card .name{font-family:'Jua',sans-serif;font-size:16px;flex:1}
+  .card .lv{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--wheat);
+    background:rgba(232,184,75,.12);padding:2px 7px;border-radius:99px;
+  }
+  .card .desc{font-size:12.5px;color:var(--dim);line-height:1.45;margin-bottom:8px}
+  .card .cost{
+    font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;
+    color:var(--wheat-hi);font-variant-numeric:tabular-nums;
+  }
+  .card:disabled .cost{color:var(--rose)}
+  .card .cost small{color:var(--dim);font-weight:400;margin-left:4px}
+  .maxed .cost{color:var(--sprout)}
+
+  .card.rebirth{border-left-color:var(--rose);background:#2A2130}
+  .card.rebirth:hover:not(:disabled){background:#372A3F;border-left-color:var(--rose)}
+  .card.rebirth .lv{color:var(--rose);background:rgba(217,79,112,.14)}
+  .card.rebirth .cost{color:#FFC2D2}
+  .card.rebirth:disabled .cost{color:var(--dim)}
+  .mul{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;
+    color:#FFC2D2;background:rgba(217,79,112,.18);
+    padding:2px 8px;border-radius:99px;margin-left:2px;
+  }
+
+  .dev{
+    margin-top:8px;border:1px dashed var(--line);border-radius:var(--r);
+    padding:12px 14px;
+  }
+  .dev .dlabel{
+    display:block;font-size:11.5px;color:var(--dim);
+    letter-spacing:1.2px;margin-bottom:9px;text-transform:uppercase;
+  }
+  .dev input{
+    width:100%;background:#0D1A21;border:1px solid var(--line);border-radius:8px;
+    color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:13px;
+    padding:9px 11px;
+  }
+  .dev .drow{display:flex;gap:8px}
+  .dev input::placeholder{color:#4E6A76}
+  .dev input:focus{outline:none;border-color:var(--wheat)}
+  .dev .go{
+    flex-shrink:0;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:8px;color:var(--text);font:inherit;font-size:13px;
+    padding:0 14px;cursor:pointer;
+  }
+  .dev .go:hover{border-color:var(--wheat);color:var(--wheat)}
+  .dev .dstate{margin:9px 0 0;font-size:12px;color:var(--dim);display:flex;align-items:center;gap:8px}
+  .dev.on{border-style:solid;border-color:var(--sprout)}
+  .dev.on .dstate{color:var(--sprout)}
+  .dev .off{
+    background:none;border:none;color:var(--rose);font:inherit;font-size:12px;
+    cursor:pointer;text-decoration:underline;padding:0;margin-left:auto;
+  }
+
+  .foot{padding:10px 16px 14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--dim);display:flex;gap:12px}  .foot button{background:none;border:none;color:var(--dim);font:inherit;cursor:pointer;text-decoration:underline}
+  .foot button:hover{color:var(--rose)}
+
+  /* 샌드박스에서 confirm/prompt가 막히므로 자체 대화상자를 쓴다 */
+  .modal{
+    position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+    background:rgba(6,14,18,.72);padding:20px;
+  }
+  .modal[hidden]{display:none}
+  .sheet{
+    width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);
+    border-radius:18px;padding:22px 22px 18px;box-shadow:0 24px 60px rgba(0,0,0,.5);
+  }
+  .sheet h3{font-family:'Jua',sans-serif;font-weight:400;font-size:20px;margin:0 0 10px;color:var(--wheat)}
+  .sheet p{margin:0 0 16px;font-size:13.5px;line-height:1.65;color:var(--text);white-space:pre-line}
+  .sheet input{
+    width:100%;background:#0D1A21;border:1px solid var(--line);border-radius:9px;
+    color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12.5px;
+    padding:10px 11px;margin-bottom:16px;
+  }
+  .sheet input:focus{outline:none;border-color:var(--wheat)}
+  .m-btns{display:flex;gap:9px;justify-content:flex-end}
+  .m-btns button{
+    border-radius:9px;font:inherit;font-size:13.5px;padding:9px 18px;cursor:pointer;
+    border:1px solid var(--line);background:transparent;color:var(--dim);
+  }
+  .m-btns button:hover{color:var(--text)}
+  .m-btns #m-ok{background:var(--wheat);border-color:var(--wheat);color:#1A1206;font-weight:600}
+  .m-btns #m-ok:hover{background:var(--wheat-hi)}
+
+  @media (max-width:840px){
+    .wrap{flex-direction:column}
+    .field{height:100dvh}
+    /* 상점을 아래에서 끌어올리는 시트로 */
+    .shop{
+      position:fixed;left:0;right:0;bottom:0;width:100%;height:88dvh;
+      border-left:none;border-top:1px solid var(--line);
+      border-radius:20px 20px 0 0;z-index:20;
+      box-shadow:0 -18px 40px rgba(0,0,0,.45);
+      transition:transform .3s cubic-bezier(.22,.9,.3,1);
+    }
+    .shop.dragging{transition:none}
+    .shop.folded{width:100%}
+    .shop.folded .shop-head{padding:18px 20px 12px;justify-content:flex-start;border-bottom:1px solid var(--line)}
+    .shop.folded h2, .shop.folded #mute,
+    .shop.folded .topbar, .shop.folded .list, .shop.folded .foot{display:flex}
+    .shop.folded h2{display:block}
+    #fold{display:none}
+    .grip{
+      display:flex;align-items:center;justify-content:center;
+      height:30px;flex-shrink:0;cursor:grab;touch-action:none;
+    }
+    .grip span{width:44px;height:5px;border-radius:99px;background:var(--line)}
+    .grip:active span{background:var(--dim)}
+    .hud{padding:10px 14px 6px;gap:14px}
+    .stat b{font-size:21px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="field">
+    <div class="hud">
+      <div class="brand">황혼의 밀밭</div>
+      <div class="stat"><b id="s-wheat">0</b><span>밀</span><span class="mul" id="s-mul" hidden></span></div>
+      <div class="stat sm"><b id="s-rate">0.0</b><span>초당</span></div>
+      <div class="stat sm"><b id="s-total">0</b><span>누적</span></div>
+    </div>
+    <canvas id="cv"></canvas>
+    <div class="hint" id="hint">다 익은 밀 위로 드래그해서 베어내세요</div>
+  </section>
+
+  <aside class="shop" id="shop">
+    <div class="grip" id="grip"><span></span></div>
+    <div class="shop-head">
+      <h2>창고 · 업그레이드</h2>
+      <button class="icobtn" id="mute" title="소리 켜기/끄기">♪</button>
+      <button class="icobtn" id="fold" title="업그레이드 창 접기/펼치기">›</button>
+    </div>
+    <div class="topbar">
+      <span id="save-note">저장 대기</span>
+      <button id="savenow" type="button">지금 저장</button>
+      <button id="reset" type="button">처음부터 다시</button>
+    </div>
+    <div class="list" id="list"></div>
+    <div class="foot">
+      <button id="export" type="button">코드 복사</button>
+      <button id="import" type="button">코드 넣기</button>
+    </div>
+  </aside>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <h3 id="m-title"></h3>
+    <p id="m-body"></p>
+    <input id="m-input" type="text" autocomplete="off" spellcheck="false" hidden>
+    <div class="m-btns">
+      <button id="m-cancel" type="button">취소</button>
+      <button id="m-ok" type="button">확인</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ══ 업그레이드 정의 ══ */
+const UPS = [
+  { id:'plot', name:'밭 넓히기', max:55, base:10, mult:1.36,
+    desc:l=>`밀을 심을 수 있는 칸이 늘어납니다. 지금 ${9+l}칸.` },
+  { id:'water', name:'물 대기', max:30, base:14, mult:1.42,
+    desc:l=>`밀이 다 자라는 시간이 짧아집니다. 지금 ${(growMs(l)/1000).toFixed(1)}초.` },
+  { id:'yield', name:'품종 개량', max:50, base:24, mult:1.48,
+    desc:l=>`한 칸을 벨 때 얻는 밀이 늘어납니다. 지금 ${1+l}알.` },
+  { id:'blade', name:'낫날 갈기', max:10, base:35, mult:1.7,
+    desc:l=>`한 번의 드래그로 베는 범위가 넓어집니다. 지금 ${bladeR(l)}px.` },
+  { id:'crow', name:'허수아비 일꾼', max:12, base:110, mult:1.85,
+    desc:l=>l===0?'가만히 둬도 알아서 밀을 베어 옵니다.'
+                :`${(crowMs(l)/1000).toFixed(2)}초마다 익은 칸 하나를 벱니다.` },
+  { id:'gold', name:'황금 밀 씨앗', max:12, base:350, mult:1.95,
+    desc:l=>`가끔 황금 밀이 자랍니다. 베면 8배. 확률 ${(l*3.5).toFixed(1)}%.` },
+];
+
+const rebirthCost = r => Math.round(10000 * Math.pow(3.5, r) / 1000) * 1000;   // 10K → 35K → 123K → 429K …
+const valueMul = () => Math.pow(2, S.rebirth);
+const growMsAt = (l, r) => Math.max(80, 3000 * Math.pow(0.885, l) / Math.pow(2, r));
+const growMs  = l => growMsAt(l, S.rebirth);
+const bladeR  = l => 36 + l*12;
+const crowMs  = l => l===0 ? Infinity : 3000 / (1 + l*0.7);
+const costOf  = u => Math.floor(u.base * Math.pow(u.mult, S.up[u.id]));
+
+/* ══ 상태 ══ */
+const S = {
+  wheat:0, total:0, rebirth:0,
+  up:{ plot:0, water:0, yield:0, blade:0, crow:0, gold:0 },
+  plots:[], crowAcc:0, muted:false, dev:false,
+};
+const plotCount = () => 9 + S.up.plot;
+
+function makePlot(g){
+  return { g: g===undefined ? Math.random()*1.15 : g,
+           gold: Math.random() < S.up.gold*0.035,
+           seed: Math.random()*100, x:0, y:0, s:0, pop:0 };
+}
+function syncPlots(){
+  while(S.plots.length < plotCount()) S.plots.push(makePlot());
+  S.plots.length = plotCount();
+}
+
+/* ══ 캔버스 ══ */
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let W=0, H=0, DPR=1;
+function resize(){
+  DPR = Math.min(devicePixelRatio||1, 2);
+  const r = cv.getBoundingClientRect();
+  W = r.width; H = r.height;
+  cv.width = W*DPR; cv.height = H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  layout();
+}
+let sheetInset = 0;          // 상점 시트가 캔버스를 덮는 높이(px)
+
+function layout(){
+  const n = S.plots.length;
+  const availH = Math.max(80, H - sheetInset);      // 실제로 보이는 높이 안에서만 배치
+  const cols = Math.ceil(Math.sqrt(n * (W/availH)));
+  const c = Math.max(1, Math.min(cols, n));
+  const rows = Math.ceil(n/c);
+  const pad = 22, gap = 8;
+  const size = Math.max(12, Math.min((W-pad*2 - gap*(c-1))/c, (availH-pad*2 - gap*(rows-1))/rows));
+  const gw = c*size + (c-1)*gap, gh = rows*size + (rows-1)*gap;
+  const ox = (W-gw)/2, oy = (availH-gh)/2;
+  S.plots.forEach((p,i)=>{
+    p.x = ox + (i%c)*(size+gap) + size/2;
+    p.y = oy + Math.floor(i/c)*(size+gap) + size/2;
+    p.s = size;
+  });
+}
+addEventListener('resize', resize);
+
+/* ══ 이펙트 ══ */
+const parts = [], texts = [], trail = [];
+function burst(p){
+  const n = Math.min(14, 6 + S.up.yield);
+  for(let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, sp = 40+Math.random()*130;
+    parts.push({x:p.x, y:p.y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp-70,
+                life:1, gold:p.gold});
+  }
+}
+function floatText(x,y,txt,gold){ texts.push({x,y,txt,life:1,gold}); }
+
+/* ══ 수확 ══ */
+function harvest(p){
+  if(p.g < 1) return false;
+  const amt = (1 + S.up.yield) * (p.gold ? 8 : 1) * valueMul();
+  S.wheat += amt; S.total += amt;
+  burst(p); floatText(p.x, p.y - p.s*0.35, '+'+amt, p.gold);
+  blip(p.gold);
+  p.g = 0; p.pop = 1;
+  p.gold = Math.random() < S.up.gold*0.035;
+  p.seed = Math.random()*100;
+  return true;
+}
+function cutAt(x, y, px, py){
+  const r = bladeR(S.up.blade);
+  let hit = 0;
+  for(const p of S.plots){
+    if(p.g < 1) continue;
+    if(distSeg(p.x, p.y, px, py, x, y) < r + p.s*0.28){ if(harvest(p)) hit++; }
+  }
+  return hit;
+}
+function distSeg(px,py,ax,ay,bx,by){
+  const dx=bx-ax, dy=by-ay, L=dx*dx+dy*dy;
+  let t = L ? ((px-ax)*dx + (py-ay)*dy)/L : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px-(ax+dx*t), py-(ay+dy*t));
+}
+
+/* ══ 입력 ══ */
+let down=false, lx=0, ly=0, hintOn=true;
+const pos = e => { const r = cv.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; };
+cv.addEventListener('pointerdown', e=>{
+  cv.setPointerCapture(e.pointerId); down=true;
+  const [x,y]=pos(e); lx=x; ly=y;
+  trail.push({x,y,t:performance.now()});
+  cutAt(x,y,x,y); hideHint();
+});
+cv.addEventListener('pointermove', e=>{
+  const [x,y]=pos(e);
+  if(down){ trail.push({x,y,t:performance.now()}); cutAt(x,y,lx,ly); }
+  lx=x; ly=y;
+});
+addEventListener('pointerup', ()=>{ down=false; });
+function hideHint(){ if(hintOn){ hintOn=false; const h=document.getElementById('hint'); h.style.opacity=0; } }
+
+/* ══ 소리 ══ */
+let AC=null;
+function blip(gold){
+  if(S.muted) return;
+  try{
+    AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+    const t = AC.currentTime;
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = gold ? 'triangle' : 'square';
+    o.frequency.setValueAtTime(gold?880:300, t);
+    o.frequency.exponentialRampToValueAtTime(gold?1660:180, t+0.09);
+    g.gain.setValueAtTime(0.05, t);
+    g.gain.exponentialRampToValueAtTime(0.0008, t+0.11);
+    o.connect(g).connect(AC.destination); o.start(t); o.stop(t+0.12);
+  }catch(_){}
+}
+
+/* ══ 루프 ══ */
+let last = performance.now();
+function tick(now){
+  const dt = Math.min(0.1, (now-last)/1000); last = now;
+  const gm = growMs(S.up.water)/1000;
+
+  for(const p of S.plots){
+    if(p.g < 1) p.g = Math.min(1, p.g + dt/gm);
+    if(p.pop > 0) p.pop = Math.max(0, p.pop - dt*3.5);
+  }
+
+  if(S.up.crow > 0){
+    S.crowAcc += dt*1000;
+    const iv = crowMs(S.up.crow);
+    let guard = 24;
+    while(S.crowAcc >= iv && guard-- > 0){
+      S.crowAcc -= iv;
+      const ripe = S.plots.filter(p=>p.g>=1);
+      if(!ripe.length){ S.crowAcc = 0; break; }
+      harvest(ripe[(Math.random()*ripe.length)|0]);
+    }
+  }
+
+  for(let i=parts.length-1;i>=0;i--){
+    const q = parts[i];
+    q.x += q.vx*dt; q.y += q.vy*dt; q.vy += 420*dt; q.life -= dt*1.5;
+    if(q.life<=0) parts.splice(i,1);
+  }
+  for(let i=texts.length-1;i>=0;i--){
+    const t = texts[i]; t.y -= 34*dt; t.life -= dt*1.15;
+    if(t.life<=0) texts.splice(i,1);
+  }
+  while(trail.length && now-trail[0].t > 260) trail.shift();
+
+  draw(now);
+  ui();
+  requestAnimationFrame(tick);
+}
+
+/* ══ 그리기 ══ */
+function draw(now){
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#0F1E26'); g.addColorStop(1,'#16303A');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+
+  const t = now/1000;
+  for(const p of S.plots) drawPlot(p, t);
+
+  // 낫 궤적
+  if(trail.length > 1){
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    for(let i=1;i<trail.length;i++){
+      const a = i/trail.length, age = 1-(now-trail[i].t)/260;
+      ctx.strokeStyle = `rgba(255,233,168,${0.5*a*age})`;
+      ctx.lineWidth = (2 + bladeR(S.up.blade)*0.35) * a;
+      ctx.beginPath(); ctx.moveTo(trail[i-1].x, trail[i-1].y);
+      ctx.lineTo(trail[i].x, trail[i].y); ctx.stroke();
+    }
+  }
+
+  for(const q of parts){
+    ctx.globalAlpha = Math.max(0,q.life);
+    ctx.fillStyle = q.gold ? '#FFF0B8' : '#E8B84B';
+    ctx.fillRect(q.x-1.5, q.y-1.5, 3.5, 3.5);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.textAlign='center'; ctx.font='600 16px "IBM Plex Mono", monospace';
+  for(const x of texts){
+    ctx.globalAlpha = Math.max(0, x.life);
+    ctx.fillStyle = x.gold ? '#FFF0B8' : '#DCE9EE';
+    ctx.fillText(x.txt, x.x, x.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawPlot(p, t){
+  const s = p.s, half = s/2;
+  const ripe = p.g >= 1;
+
+  if(ripe){
+    ctx.fillStyle = p.gold ? 'rgba(255,224,130,.13)' : 'rgba(232,184,75,.09)';
+    ctx.beginPath(); ctx.arc(p.x, p.y, half*1.05, 0, 6.284); ctx.fill();
+  }
+
+  // 흙
+  const sq = 1 - p.pop*0.06;
+  ctx.fillStyle = '#3E2E24';
+  rrect(p.x-half*0.94*sq, p.y+half*0.34, s*0.94*sq, s*0.34, 5);
+  ctx.fillStyle = 'rgba(0,0,0,.22)';
+  rrect(p.x-half*0.94*sq, p.y+half*0.56, s*0.94*sq, s*0.12, 4);
+
+  // 줄기
+  const total = 7, shown = Math.ceil(total * Math.min(1, p.g/0.92 + 0.14));
+  const baseY = p.y + half*0.4;
+  const hMax = s*0.78 * (0.35 + 0.65*p.g);
+  for(let i=0;i<shown;i++){
+    const f = (i/(total-1)) - 0.5;
+    const bx = p.x + f*s*0.66;
+    const sway = Math.sin(t*1.4 + p.seed + i*0.7) * (2 + p.g*4.5);
+    const h = hMax * (0.78 + 0.22*Math.cos(f*3));
+    const tipX = bx + sway, tipY = baseY - h;
+
+    ctx.strokeStyle = p.g < 0.55 ? '#6FA85A'
+                    : lerpCol('#6FA85A', p.gold?'#FFE08A':'#E8B84B', (p.g-0.55)/0.45);
+    ctx.lineWidth = 1.7; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(bx, baseY);
+    ctx.quadraticCurveTo(bx + sway*0.4, baseY - h*0.55, tipX, tipY); ctx.stroke();
+
+    if(p.g > 0.6){
+      const a = (p.g-0.6)/0.4;
+      ctx.fillStyle = p.gold ? '#FFE9A8' : '#E8B84B';
+      ctx.globalAlpha = a;
+      const eh = s*0.11*a;
+      ctx.beginPath();
+      ctx.ellipse(tipX, tipY - eh*0.4, s*0.035, eh, sway*0.03, 0, 6.284);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+function rrect(x,y,w,h,r){
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(x,y,w,h,r); else ctx.rect(x,y,w,h);
+  ctx.fill();
+}
+function lerpCol(a,b,k){
+  k = Math.max(0,Math.min(1,k));
+  const pa = [1,3,5].map(i=>parseInt(a.substr(i,2),16));
+  const pb = [1,3,5].map(i=>parseInt(b.substr(i,2),16));
+  return `rgb(${pa.map((v,i)=>Math.round(v+(pb[i]-v)*k)).join(',')})`;
+}
+
+/* ══ UI ══ */
+const fmt = n => n >= 1e12 ? (n/1e12).toFixed(2)+'T'
+              : n >= 1e9  ? (n/1e9).toFixed(2)+'B'
+              : n >= 1e6  ? (n/1e6).toFixed(2)+'M'
+              : n >= 1e4  ? (n/1e3).toFixed(1)+'K'
+              : Math.floor(n).toLocaleString('ko-KR');
+const $ = id => document.getElementById(id);
+const list = $('list');
+const cards = {};
+
+const rbEl = document.createElement('button');
+rbEl.className = 'card rebirth';
+rbEl.innerHTML = `<div class="top"><span class="name">환생</span><span class="lv">단계 <i>0</i></span></div>
+                  <div class="desc"></div><div class="cost"></div>`;
+rbEl.onclick = rebirth;
+list.appendChild(rbEl);
+const rbLv = rbEl.querySelector('i'), rbDesc = rbEl.querySelector('.desc'), rbCost = rbEl.querySelector('.cost');
+
+/* ══ 대화상자 ══ */
+// 아티팩트/샌드박스 iframe에서는 confirm()·prompt()가 무시된다. 그래서 직접 만든다.
+const modal=$('modal'), mTitle=$('m-title'), mBody=$('m-body'),
+      mInput=$('m-input'), mOk=$('m-ok'), mCancel=$('m-cancel');
+let modalDone = null;
+
+function closeModal(v){
+  modal.hidden = true;
+  const done = modalDone; modalDone = null;
+  if(done) done(v);
+}
+function openModal(o){
+  mTitle.textContent = o.title;
+  mBody.textContent = o.body || ''; mBody.hidden = !o.body;
+  mInput.hidden = !o.input; mInput.value = o.value || '';
+  mOk.textContent = o.okText || '확인';
+  mCancel.textContent = o.cancelText || '취소';
+  mCancel.hidden = o.cancel === false;
+  modal.hidden = false;
+  if(o.input) setTimeout(()=>{ mInput.focus(); mInput.select(); }, 60);
+  return new Promise(res => { modalDone = res; });
+}
+mOk.onclick = ()=> closeModal(mInput.hidden ? true : mInput.value);
+mCancel.onclick = ()=> closeModal(null);
+modal.onclick = e => { if(e.target === modal) closeModal(null); };
+addEventListener('keydown', e => {
+  if(modal.hidden) return;
+  if(e.key === 'Escape') closeModal(null);
+  if(e.key === 'Enter'){ e.preventDefault(); closeModal(mInput.hidden ? true : mInput.value); }
+});
+
+async function rebirth(){
+  const cost = rebirthCost(S.rebirth);
+  if(!S.dev && S.wheat < cost) return;
+
+  const nextR = S.rebirth + 1;
+  const body = (S.dev ? '개발자 모드 — 밀을 내지 않고 환생합니다.\n'
+                      : `밀 ${cost.toLocaleString('ko-KR')}을 바칩니다.\n`)
+             + `\n밀과 모든 업그레이드가 처음으로 돌아갑니다.`
+             + `\n영구히 남는 것:`
+             + `\n· 밀 한 알의 값어치  ×${valueMul()} → ×${Math.pow(2, nextR)}`
+             + `\n· 기본 성장 시간  ${(growMsAt(0, S.rebirth)/1000).toFixed(2)}초 → ${(growMsAt(0, nextR)/1000).toFixed(2)}초`
+             + `\n\n다음 환생 비용은 ${rebirthCost(nextR).toLocaleString('ko-KR')}으로 오릅니다.`
+             + `\n누적 수확량과 개발자 인증은 유지됩니다.`
+             + `\n지금 올려둔 업그레이드는 잃으므로 당분간은 느려집니다.`;
+
+  if(!await openModal({ title:`환생 ${nextR}단계`, body,
+                        okText:'전부 걸고 환생', cancelText:'그만두기' })) return;
+
+  S.rebirth = nextR;
+  S.wheat = 0;                              // 모아둔 밀도 사라진다
+  for(const k in S.up) S.up[k] = 0;         // 업그레이드 전부 0단계로
+  S.crowAcc = 0;
+  S.plots.length = 0; syncPlots(); layout();
+
+  blip(true);
+  save();
+}
+
+UPS.forEach(u=>{
+  const b = document.createElement('button');
+  b.className = 'card';
+  b.innerHTML = `<div class="top"><span class="name">${u.name}</span><span class="lv">Lv <i></i></span></div>
+                 <div class="desc"></div><div class="cost"></div>`;
+  b.onclick = ()=>buy(u);
+  list.appendChild(b);
+  cards[u.id] = { el:b, lv:b.querySelector('i'), desc:b.querySelector('.desc'), cost:b.querySelector('.cost') };
+});
+
+/* ══ 개발자 인증 ══ */
+// 코드는 느슨하게 본다: 영문자만 남기고 비교하므로 점·공백·대소문자를 신경 쓰지 않아도 된다.
+const DEV_CODES = ['multysu', 'muttisu'];
+const normalize = v => (v || '').toLowerCase().replace(/[^a-z]/g, '');
+
+const devBox = document.createElement('div');
+devBox.className = 'dev';
+devBox.innerHTML = `<span class="dlabel">개발자 인증</span>
+  <div class="drow">
+    <input id="devcode" type="text" placeholder=".multysu" autocomplete="off"
+           autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="개발자 코드">
+    <button class="go" id="devgo" type="button">확인</button>
+  </div>
+  <p class="dstate"><span id="dtext">잠김</span><button class="off" id="devoff" hidden>해제</button></p>`;
+list.appendChild(devBox);
+
+const devInput = $('devcode'), devText = $('dtext'), devOff = $('devoff');
+
+function devUI(msg, bad){
+  devBox.classList.toggle('on', S.dev);
+  devText.textContent = msg || (S.dev ? '인증됨 — 밀 없이 업그레이드·환생 가능' : '잠김');
+  devText.style.color = bad ? 'var(--rose)' : '';
+  devOff.hidden = !S.dev;
+  devInput.hidden = S.dev;
+  $('devgo').hidden = S.dev;
+}
+
+function devCheck(quiet){
+  if(S.dev) return;
+  if(DEV_CODES.includes(normalize(devInput.value))){
+    S.dev = true; devInput.value = '';
+    blip(true); devUI(); save();
+  }else if(!quiet && devInput.value.trim()){
+    devUI('코드가 맞지 않습니다', true);
+  }
+}
+
+devInput.addEventListener('input', ()=>devCheck(true));          // 다 치는 순간 바로 열림
+devInput.addEventListener('change', ()=>devCheck(true));          // 붙여넣기·자동완성 대비
+devInput.addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); devCheck(false); } });
+devInput.addEventListener('focus', ()=>{                          // 모바일 키보드에 가리지 않게
+  setTimeout(()=>devBox.scrollIntoView({block:'nearest', behavior:'smooth'}), 300);
+});
+$('devgo').onclick = ()=>devCheck(false);
+devOff.onclick = ()=>{ S.dev = false; devUI(); save(); };
+
+function buy(u){
+  const c = costOf(u);
+  if(S.up[u.id] >= u.max) return;
+  if(!S.dev){
+    if(S.wheat < c) return;
+    S.wheat -= c;
+  }
+  S.up[u.id]++;
+  if(u.id === 'plot'){ syncPlots(); layout(); }
+  blip(false); save();
+}
+
+let uiAcc = 0;
+function ui(){
+  $('s-wheat').textContent = fmt(S.wheat);
+  $('s-total').textContent = fmt(S.total);
+  const perSec = plotCount() * (1+S.up.yield) * valueMul() * (1 + S.up.gold*0.035*7) / (growMs(S.up.water)/1000);
+  $('s-rate').textContent = perSec.toFixed(1);
+
+  const mulEl = $('s-mul');
+  mulEl.hidden = S.rebirth === 0;
+  mulEl.textContent = '×' + valueMul();
+
+  rbLv.textContent = S.rebirth;
+  rbDesc.textContent = `밀과 업그레이드가 모두 처음으로 돌아갑니다. 대신 밀 한 알의 값어치가 `
+                     + `2배(현재 ×${valueMul()}), 성장 시간이 절반으로 영구히 남습니다.`;
+  const rCost = rebirthCost(S.rebirth);
+  const can = S.dev || S.wheat >= rCost;
+  rbEl.disabled = !can;
+  rbCost.innerHTML = S.dev ? '무료 <small>개발자</small>'
+                   : can ? `${fmt(rCost)} <small>밀 바치기</small>`
+                         : `${fmt(S.wheat)} / ${fmt(rCost)} <small>밀</small>`;
+
+  for(const u of UPS){
+    const c = cards[u.id], lv = S.up[u.id], maxed = lv >= u.max, cost = costOf(u);
+    c.lv.textContent = lv;
+    c.desc.textContent = u.desc(lv);
+    c.el.classList.toggle('maxed', maxed);
+    c.cost.innerHTML = maxed ? '최대 단계'
+                     : S.dev ? '무료 <small>개발자</small>'
+                             : `${fmt(cost)} <small>밀</small>`;
+    c.el.disabled = maxed || (!S.dev && S.wheat < cost);
+  }
+}
+
+$('mute').onclick = e => {
+  S.muted = !S.muted;
+  e.currentTarget.textContent = S.muted ? '♪̶' : '♪';
+  e.currentTarget.style.color = S.muted ? '#D94F70' : '';
+  save();
+};
+$('reset').onclick = async () => {
+  if(!await openModal({ title:'처음부터 다시',
+      body:'모아둔 밀, 업그레이드, 환생 단계, 개발자 인증이 모두 사라집니다.',
+      okText:'전부 지우기', cancelText:'취소' })) return;
+  S.wheat=0; S.total=0; S.crowAcc=0; S.rebirth=0; S.dev=false;
+  for(const k in S.up) S.up[k]=0;
+  S.plots.length=0; syncPlots(); layout(); devUI(); flush(true);
+};
+
+/* ══ 상점 접기 · 시트 끌기 ══ */
+const shopEl = $('shop'), gripEl = $('grip'), foldEl = $('fold');
+const isSheet = () => matchMedia('(max-width:840px)').matches;
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const snaps = () => [104, Math.round(innerHeight*0.46), Math.round(innerHeight*0.86)];
+let shown = 0;   // 화면에 보이는 시트 높이(px)
+
+function setSheet(v, animate){
+  if(!isSheet()){
+    shopEl.style.transform = '';
+    if(sheetInset !== 0){ sheetInset = 0; layout(); }
+    return;
+  }
+  shown = clamp(v, 70, innerHeight*0.88);
+  shopEl.classList.toggle('dragging', animate === false);
+  shopEl.style.transform = `translateY(${Math.max(0, shopEl.offsetHeight - shown)}px)`;
+
+  // 캔버스 아래쪽이 시트에 얼마나 가려지는지 재서 밭을 그 위로 몰아준다
+  const gap = innerHeight - cv.getBoundingClientRect().bottom;
+  sheetInset = clamp(shown - gap, 0, H*0.75);
+  layout();
+}
+function toggleSheet(){
+  const s = snaps();
+  setSheet(shown <= s[0] + 12 ? s[1] : s[0], true);
+}
+
+let drag = false, startY = 0, startV = 0, moved = 0;
+gripEl.addEventListener('pointerdown', e=>{
+  if(!isSheet()) return;
+  drag = true; moved = 0; startY = e.clientY; startV = shown;
+  gripEl.setPointerCapture(e.pointerId);
+  shopEl.classList.add('dragging');
+});
+gripEl.addEventListener('pointermove', e=>{
+  if(!drag) return;
+  const dy = startY - e.clientY;
+  moved = Math.max(moved, Math.abs(dy));
+  setSheet(startV + dy, false);
+});
+function endDrag(){
+  if(!drag) return;
+  drag = false; shopEl.classList.remove('dragging');
+  if(moved < 7){ toggleSheet(); return; }                 // 살짝 누른 건 탭으로 취급
+  const s = snaps();
+  setSheet(s.reduce((a,b)=> Math.abs(b-shown) < Math.abs(a-shown) ? b : a), true);
+}
+gripEl.addEventListener('pointerup', endDrag);
+gripEl.addEventListener('pointercancel', endDrag);
+
+foldEl.onclick = ()=>{
+  if(isSheet()) return toggleSheet();
+  shopEl.classList.toggle('folded');
+  setTimeout(resize, 280);                                 // 밭 너비가 바뀌므로 다시 그린다
+};
+
+addEventListener('resize', ()=>{
+  if(isSheet()) setSheet(shown || snaps()[1], false);
+  else { shopEl.style.transform = ''; shopEl.classList.remove('dragging'); }
+});
+
+/* ══ 저장 ══ */
+const KEY = 'wheatfield-v1';
+const note = $('save-note');
+function setNote(t, bad){ note.textContent = t; note.style.color = bad ? 'var(--rose)' : ''; }
+
+// save()는 예약만. 실제 쓰기는 flush()가 4초에 한 번.
+let dirty = false, saving = false, BE = null;
+function save(){ dirty = true; }
+
+function snapshot(){
+  return JSON.stringify({
+    v:1, wheat:S.wheat, total:S.total, up:S.up, muted:S.muted, rebirth:S.rebirth, dev:S.dev,
+    g:S.plots.map(p=>+p.g.toFixed(3))
+  });
+}
+
+// 환경마다 되는 저장소가 달라서 후보를 두고, 실제로 써 보고 되는 걸 고른다.
+const BACKENDS = [
+  { name:'앱 저장소',
+    async set(k,v){ await window.storage.set(k, v, false); },
+    async get(k){ const r = await window.storage.get(k, false); return r ? r.value : null; } },
+  { name:'브라우저 저장소',
+    async set(k,v){ localStorage.setItem(k, v); },
+    async get(k){ return localStorage.getItem(k); } },
+  { name:'탭 저장소',
+    async set(k,v){ sessionStorage.setItem(k, v); },
+    async get(k){ return sessionStorage.getItem(k); } },
+];
+
+// 쓰기 함수의 반환값은 믿지 않는다. 되읽어서 값이 같은지로만 성공을 판정한다.
+// ("Unexpected response type"처럼 응답 형식만 어긋나고 저장은 된 경우를 살린다.)
+async function tryWrite(be, payload){
+  try{ await be.set(KEY, payload); }catch(_){ /* 응답 오류는 검증으로 판정 */ }
+  try{ return (await be.get(KEY)) === payload; }catch(_){ return false; }
+}
+
+async function flush(force){
+  if(saving || (!dirty && !force)) return;
+  saving = true; dirty = false;
+  const payload = snapshot();
+
+  let ok = BE ? await tryWrite(BE, payload) : false;
+  if(!ok){                                  // 쓰던 저장소가 죽으면 다음 후보로 갈아탄다
+    for(const be of BACKENDS){
+      if(be === BE) continue;
+      if(await tryWrite(be, payload)){ BE = be; ok = true; break; }
+    }
+  }
+
+  if(ok){
+    setNote('저장됨 ' + new Date().toLocaleTimeString('ko-KR',
+      {hour:'2-digit', minute:'2-digit', second:'2-digit'}) + ' · ' + BE.name);
+  }else{
+    dirty = true;
+    setNote('자동 저장 불가 — 코드 복사로 보관하세요', true);
+  }
+  saving = false;
+}
+
+function applyData(d){
+  S.wheat = d.wheat||0; S.total = d.total||0; S.muted = !!d.muted; S.rebirth = d.rebirth||0;
+  S.dev = !!d.dev;
+  for(const k in S.up) if(typeof d.up?.[k] === 'number') S.up[k] = d.up[k];
+  syncPlots();
+  if(Array.isArray(d.g)) S.plots.forEach((p,i)=>{ if(d.g[i]!=null) p.g = d.g[i]; });
+  $('mute').textContent = S.muted ? '♪̶' : '♪';
+  devUI();
+}
+
+async function load(){
+  for(const be of BACKENDS){
+    let raw = null;
+    try{ raw = await be.get(KEY); }catch(_){ continue; }
+    if(!raw) continue;
+    try{ applyData(JSON.parse(raw)); BE = be; setNote('불러옴 · ' + be.name); return; }
+    catch(_){ /* 깨진 데이터면 다음 후보 */ }
+  }
+  setNote('새 게임');
+}
+
+$('export').onclick = async () => {
+  const code = btoa(unescape(encodeURIComponent(snapshot())));
+  let copied = false;
+  try{ await navigator.clipboard.writeText(code); copied = true; }catch(_){}
+  setNote(copied ? '코드 복사됨' : '코드 표시됨');
+  await openModal({ title:'저장 코드',
+    body: copied ? '클립보드에 복사했습니다. 메모장 등에 보관하세요.'
+                 : '아래 코드를 선택해 복사한 뒤 보관하세요.',
+    input:true, value:code, okText:'닫기', cancel:false });
+};
+
+$('import').onclick = async () => {
+  const code = await openModal({ title:'코드 넣기',
+    body:'보관해 둔 저장 코드를 붙여넣으세요.', input:true, okText:'불러오기' });
+  if(!code) return;
+  try{
+    applyData(JSON.parse(decodeURIComponent(escape(atob(code.trim())))));
+    layout(); flush(true); setNote('코드 불러옴');
+  }catch(_){ setNote('코드를 읽을 수 없습니다', true); }
+};
+
+$('savenow').onclick = () => flush(true);
+addEventListener('visibilitychange', ()=>{ if(document.hidden) flush(true); });
+addEventListener('pagehide', ()=>{ flush(true); });
+addEventListener('blur', ()=>{ flush(true); });
+
+/* ══ 시작 ══ */
+(async ()=>{
+  syncPlots();
+  await load();
+  syncPlots();
+  resize();
+  // 레이아웃이 잡힌 뒤에 시트 높이를 계산한다
+  requestAnimationFrame(()=> setSheet(snaps()[1], false));
+  addEventListener('load', ()=>{ if(isSheet()) setSheet(shown || snaps()[1], false); });
+  await flush(true);            // 시작할 때 쓸 수 있는 저장소를 한 번 확정한다
+  setInterval(()=>flush(false), 4000);
+  requestAnimationFrame(t=>{ last=t; tick(t); });
+})();
+
+})();
+</script>
+</body>
+</html>
