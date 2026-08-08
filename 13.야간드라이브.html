@@ -50,6 +50,25 @@
   #curveR{left:50%;margin-left:150px}
   #curveL svg,#curveR svg{width:100%;height:100%}
 
+  #radio{left:18px;bottom:58px;width:230px;pointer-events:auto}
+  #rName{font-size:15px;font-weight:600;margin-top:3px;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;color:var(--ink)}
+  #rName.off{color:var(--dim);font-weight:400}
+  #rInfo{font-size:10px;color:var(--dim);letter-spacing:.03em;margin-top:2px;height:12px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #rBand{position:relative;height:13px;margin:6px 0 6px;
+    background:repeating-linear-gradient(90deg,rgba(120,160,220,.32) 0 1px,transparent 1px 9px);
+    border-bottom:1px solid rgba(120,160,220,.22)}
+  #rNeedle{position:absolute;top:-3px;left:0;width:2px;height:18px;background:var(--amber);
+    box-shadow:0 0 8px var(--amber);transition:left .28s ease}
+  #rCtl{display:flex;gap:5px}
+  #rCtl button{flex:1;font-family:inherit;font-size:11px;color:var(--ink);
+    background:rgba(120,160,220,.12);border:1px solid rgba(120,160,220,.28);
+    border-radius:2px;padding:5px 0;cursor:pointer;transition:.15s}
+  #rCtl button:hover{background:rgba(63,214,192,.26)}
+  #rCtl button.live{background:rgba(63,214,192,.3);border-color:rgba(63,214,192,.6)}
+  #rStat{font-size:10px;color:var(--dim);margin-top:6px;letter-spacing:.03em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #helmets{position:absolute;bottom:24px;left:24px;display:flex;gap:8px}
   .hm{width:15px;height:15px;border-radius:50% 50% 42% 42%;background:var(--teal);
       box-shadow:0 0 10px rgba(63,214,192,.6);transition:.25s}
@@ -107,6 +126,8 @@
     #cluster{width:190px;margin-left:-95px} #spd{font-size:42px;top:44px}
     #curveL{margin-left:-150px} #curveR{margin-left:124px}
     #blkL{margin-left:-126px} #blkR{margin-left:106px}
+    #radio{width:186px;bottom:52px;left:12px;padding:8px 10px}
+    #rName{font-size:13px}
   }
 </style>
 </head>
@@ -146,6 +167,20 @@
     <div id="gear">N</div>
   </div>
 
+  <div class="panel" id="radio">
+    <div class="label">라디오</div>
+    <div id="rName" class="off">채널 없음</div>
+    <div id="rInfo"></div>
+    <div id="rBand"><i id="rNeedle"></i></div>
+    <div id="rCtl">
+      <button id="rPrev" title="이전 채널">◀</button>
+      <button id="rPow" title="전원">전원</button>
+      <button id="rNext" title="다음 채널">▶</button>
+      <button id="rUrl" title="스트림 주소 직접 입력">URL</button>
+    </div>
+    <div id="rStat">R — 켜기 · [ ] 채널</div>
+  </div>
+
   <div id="helmets"><i class="hm"></i><i class="hm"></i><i class="hm"></i></div>
   <div id="toast"></div>
   <div id="banner"><div class="bk">SECTION</div><div class="bn" id="bannerName">교량</div></div>
@@ -171,6 +206,8 @@
     <b>V</b><span>3인칭 ↔ 1인칭 전환</span>
     <b>E</b><span>자율주행 (작동 중 ↑↓ 로 설정 속도)</span>
     <b>M</b><span>엔진음 켜기/끄기</span>
+    <b>R</b><span>라디오 켜기/끄기</span>
+    <b>[ ]</b><span>라디오 채널 · <b>− =</b> 음량 · <b>1~6</b> 프리셋</span>
   </div>
   <button class="btn" id="go">시동 걸기</button>
 </div>
@@ -1738,6 +1775,15 @@ addEventListener('keydown', function(e){
   if(e.code==='KeyV') toggleView();
   if(e.code==='KeyE') toggleAuto();
   if(e.code==='KeyM'){ audioOn=!audioOn; setEngineVolume(); }
+  if(e.code==='KeyR') radioToggle();
+  if(e.code==='BracketLeft')  radioTune(-1);
+  if(e.code==='BracketRight') radioTune(1);
+  if(e.code==='Minus') radioVolume(-0.1);
+  if(e.code==='Equal') radioVolume(0.1);
+  if(/^Digit[1-6]$/.test(e.code)){
+    const n=parseInt(e.code.slice(5),10)-1;
+    if(RADIO.list[n]){ RADIO.idx=n; RADIO.on=true; radioPlay(); setEngineVolume(); }
+  }
   if(AUTO.on){
     if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='ArrowDown'||e.code==='KeyS'){
       const up = (e.code==='ArrowUp'||e.code==='KeyW');
@@ -1786,7 +1832,7 @@ function initAudio(){
     oscA.start(); oscB.start();
   }catch(e){ actx=null; }
 }
-function setEngineVolume(){ if(engGain) engGain.gain.value=(audioOn&&state==='run')?0.05:0; }
+function setEngineVolume(){ if(engGain) engGain.gain.value=(audioOn&&state==='run')?(RADIO.on?0.022:0.05):0; }
 function updateAudio(){
   if(!actx||!oscA) return;
   const r=BIKE.speed/(MAX_KMH/KMH);
@@ -1794,6 +1840,190 @@ function updateAudio(){
   oscA.frequency.value=f; oscB.frequency.value=f/2;
   filt.frequency.value=500+r*2200;
   setEngineVolume();
+}
+
+/* ============================================================
+   라디오 — Radio Browser 공개 API(대한민국) 스트리밍
+   ============================================================ */
+const RADIO = {on:false, list:[], idx:0, vol:0.75, audio:null,
+               status:'대기 — R 로 켜기', hls:null, scanning:false, tries:0, timer:null, gen:0};
+
+/* 브라우저에서 실제 재생이 확인된 기본 채널 (API 를 못 불러와도 바로 동작) */
+const RADIO_BUILTIN = [
+  {name:'CBS 파워라디오 Music FM', url:'https://lhttp-hw.qtfm.cn/live/15318233/64k.mp3', info:'MP3'},
+  {name:'K-RADIO',                 url:'https://s5.radio.co/s0a9796fe3/listen',            info:'MP3 128k'},
+  {name:'Big B Radio — K-POP',     url:'https://antares.dribbcast.com/proxy/kpop?mp=/s',   info:'MP3 192k'},
+  {name:'LISTEN.moe K-POP',        url:'https://listen.moe/kpop/stream',                   info:'OGG 256k'},
+  {name:'LISTEN.moe K-POP (MP3)',  url:'https://listen.moe/kpop/fallback',                 info:'MP3'},
+  {name:'REPLAY NEWS 한국어',       url:'https://replaynewskr.ice.infomaniak.ch/replaynewskr-128.mp3', info:'MP3 128k · 뉴스'},
+  {name:'Fred Film Radio 한국어',   url:'https://s10.webradio-hosting.com/proxy/fredradiokr/stream',   info:'MP3 128k'},
+  {name:'AFN Daegu',               url:'https://22963.live.streamtheworld.com/AFNP_DGUAAC.aac', info:'AAC'},
+  {name:'EBS FM',                  url:'https://ebsonair.ebs.co.kr/fmradiofamilypc/familypc1m/playlist.m3u8', info:'HLS'}
+];
+
+const rEl = {
+  box:document.getElementById('radio'), name:document.getElementById('rName'),
+  info:document.getElementById('rInfo'), needle:document.getElementById('rNeedle'),
+  stat:document.getElementById('rStat'), pow:document.getElementById('rPow')
+};
+function radioHud(){
+  const st = RADIO.list[RADIO.idx];
+  rEl.name.textContent = st ? st.name : '채널 없음';
+  rEl.name.classList.toggle('off', !RADIO.on);
+  rEl.info.textContent = st ? (st.info || '') + (st.hls ? '  · HLS' : '') : '';
+  rEl.pow.classList.toggle('live', RADIO.on);
+  const pos = RADIO.list.length>1 ? (RADIO.idx/(RADIO.list.length-1))*100 : 0;
+  rEl.needle.style.left = pos.toFixed(1)+'%';
+  rEl.stat.textContent = RADIO.status +
+    (RADIO.list.length ? '  ·  '+(RADIO.idx+1)+'/'+RADIO.list.length+'  ·  음량 '+Math.round(RADIO.vol*100) : '');
+}
+function radioClearTimer(){ if(RADIO.timer){ clearTimeout(RADIO.timer); RADIO.timer=null; } }
+function radioStop(){
+  radioClearTimer();
+  if(RADIO.hls){ try{ RADIO.hls.destroy(); }catch(e){} RADIO.hls=null; }
+  if(RADIO.audio){ try{ RADIO.audio.pause(); }catch(e){} RADIO.audio.removeAttribute('src'); }
+}
+function withHls(cb){
+  if(window.Hls){ cb(); return; }
+  const sc=document.createElement('script');
+  sc.src='https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js';
+  sc.onload=function(){ cb(); };
+  sc.onerror=function(){ radioFail(RADIO.gen); };
+  document.head.appendChild(sc);
+}
+/* 현재 채널이 안 나오면 다음 채널로 자동 이동 */
+function radioFail(gen){
+  if(gen !== undefined && gen !== RADIO.gen) return;   // 정리 중 발생한 지난 이벤트 무시
+  if(!RADIO.on) return;
+  radioStop();
+  if(RADIO.scanning && RADIO.tries < Math.min(16, RADIO.list.length)){
+    RADIO.tries++;
+    RADIO.idx = (RADIO.idx+1) % RADIO.list.length;
+    RADIO.status = '채널 검색 중… ('+RADIO.tries+')';
+    radioHud();
+    radioStart();
+  } else {
+    RADIO.scanning=false;
+    RADIO.status = '신호 없음 — [ ] 로 다른 채널';
+    radioHud();
+  }
+}
+function radioStart(){
+  const st = RADIO.list[RADIO.idx];
+  if(!st){ RADIO.status='채널이 없습니다 — URL 버튼으로 추가'; radioHud(); return; }
+  radioStop();
+  RADIO.gen++;
+  const gen = RADIO.gen;
+  if(!RADIO.scanning){ RADIO.status='주파수 맞추는 중…'; radioHud(); }
+  RADIO.timer = setTimeout(function(){ radioFail(gen); }, RADIO.scanning ? 7000 : 9000);
+  if(st.hls && !RADIO.audio.canPlayType('application/vnd.apple.mpegurl')){
+    withHls(function(){
+      if(gen !== RADIO.gen || !RADIO.on) return;
+      if(!window.Hls || !window.Hls.isSupported()){ radioFail(gen); return; }
+      RADIO.hls = new window.Hls({liveDurationInfinity:true});
+      RADIO.hls.on(window.Hls.Events.ERROR, function(e,d){ if(d && d.fatal) radioFail(gen); });
+      RADIO.hls.loadSource(st.url);
+      RADIO.hls.attachMedia(RADIO.audio);
+      RADIO.hls.on(window.Hls.Events.MANIFEST_PARSED, function(){
+        RADIO.audio.play().catch(function(){ radioFail(gen); });
+      });
+    });
+  } else {
+    RADIO.audio.src = st.url;
+    RADIO.audio.play().catch(function(){ radioFail(gen); });
+  }
+}
+function radioTune(delta){
+  if(!RADIO.list.length){ RADIO.status='채널이 없습니다 — URL 버튼으로 추가'; radioHud(); return; }
+  const n=RADIO.list.length;
+  RADIO.idx = ((RADIO.idx+delta)%n+n)%n;
+  RADIO.scanning=false; RADIO.tries=0;
+  if(RADIO.on) radioStart(); else radioHud();
+}
+function radioToggle(){
+  RADIO.on = !RADIO.on;
+  if(RADIO.on){
+    RADIO.scanning = true; RADIO.tries = 0;      // 켜면 나오는 채널을 자동으로 찾는다
+    RADIO.status = '채널 검색 중…'; radioHud();
+    radioStart();
+  } else {
+    radioStop(); RADIO.status='꺼짐'; radioHud();
+  }
+  setEngineVolume();
+}
+function radioVolume(d){
+  RADIO.vol = Math.max(0, Math.min(1, RADIO.vol+d));
+  if(RADIO.audio) RADIO.audio.volume = RADIO.vol;
+  radioHud();
+}
+function radioAddUrl(){
+  const u = prompt('스트림 주소를 입력하세요 (https:// 로 시작)', 'https://');
+  if(!u || u.indexOf('https://')!==0) return;
+  RADIO.list.push({name:'직접 입력 채널', url:u, info:'사용자 추가', hls:/\.m3u8(\?|$)/i.test(u)});
+  RADIO.idx = RADIO.list.length-1;
+  RADIO.on = true; RADIO.scanning=false; RADIO.tries=0;
+  radioStart(); setEngineVolume();
+}
+function radioInit(){
+  RADIO.audio = new Audio();
+  RADIO.audio.preload='none';
+  RADIO.audio.volume=RADIO.vol;
+  RADIO.audio.addEventListener('playing', function(){
+    radioClearTimer();
+    const st=RADIO.list[RADIO.idx];
+    const first = RADIO.scanning || RADIO.status!=='수신 중';
+    RADIO.scanning=false; RADIO.tries=0;
+    RADIO.status='수신 중'; radioHud();
+    if(st && first) toast('♫  '+st.name);
+  });
+  RADIO.audio.addEventListener('waiting', function(){
+    if(RADIO.on && !RADIO.scanning){ RADIO.status='버퍼링…'; radioHud(); }
+  });
+  RADIO.audio.addEventListener('error', function(){
+    if(!RADIO.on) return;
+    if(!RADIO.audio.getAttribute('src')) return;    // 채널 정리 과정의 에러는 무시
+    radioFail(RADIO.gen);
+  });
+  RADIO.audio.addEventListener('ended', function(){ if(RADIO.on) radioFail(RADIO.gen); });
+
+  RADIO.list = RADIO_BUILTIN.map(function(x){
+    return {name:x.name, url:x.url, info:x.info, hls:/\.m3u8(\?|$)/i.test(x.url)};
+  });
+  document.getElementById('rPrev').addEventListener('click', function(){ radioTune(-1); });
+  document.getElementById('rNext').addEventListener('click', function(){ radioTune(1); });
+  document.getElementById('rPow').addEventListener('click', radioToggle);
+  document.getElementById('rUrl').addEventListener('click', radioAddUrl);
+  radioHud();
+  radioFetch();
+}
+/* Radio Browser 공개 API 에서 한국 채널을 추가로 붙인다 (실패해도 기본 목록으로 동작) */
+function radioFetch(){
+  const hosts=['https://de1.api.radio-browser.info','https://all.api.radio-browser.info'];
+  const q='/json/stations/search?countrycode=KR&hidebroken=true&order=votes&reverse=true&limit=150';
+  let i=0;
+  (function next(){
+    if(i>=hosts.length) return;                  // 조용히 포기 — 기본 목록으로 계속 동작
+    fetch(hosts[i++]+q)
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(j){
+        const have={};
+        RADIO.list.forEach(function(x){ have[x.url]=1; have[x.name]=1; });
+        const plain=[], hls=[];
+        j.forEach(function(st){
+          const u=st.url_resolved||st.url, nm=(st.name||'').trim();
+          if(!u || u.indexOf('https://')!==0 || !nm) return;   // http 는 혼합콘텐츠로 차단
+          if(have[u] || have[nm]) return;
+          have[u]=1; have[nm]=1;
+          const isH=/\.m3u8(\?|$)/i.test(u);
+          const info=[st.codec&&st.codec!=='UNKNOWN'?st.codec:'', st.bitrate?st.bitrate+'k':'',
+                      (st.tags||'').split(',').slice(0,2).join(', ')].filter(Boolean).join(' · ');
+          (isH?hls:plain).push({name:nm, url:u, info:info, hls:isH});
+        });
+        RADIO.list = RADIO.list.concat(plain, hls);
+        radioHud();
+      })
+      .catch(function(){ next(); });
+  })();
 }
 
 const el={
@@ -2164,6 +2394,7 @@ function loop(){
   renderer.render(scene,camera);
 }
 document.getElementById('viewname').textContent='3인칭';
+radioInit();
 traffic.forEach(function(v){ respawnTraffic(v,true); });
 oncoming.forEach(function(v){ respawnOncoming(v,true); });
 loop();
