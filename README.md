@@ -46,5 +46,4 @@
 |---|---|
 | <img src="docs/screenshots/arcade-money-drive.png" width="420" alt="머니드라이브"> | <img src="docs/screenshots/arcade-bubble-dragon.png" width="420" alt="버블드래곤"> |
 | 나이트드라이브 |  |
-|---|---|
 | <img src="docs/screenshots/night-driver.png" width="420" alt="나이트드라이브"> |  |
