@@ -45,5 +45,5 @@
 | 머니드라이브 | 버블드래곤 |
 |---|---|
 | <img src="docs/screenshots/arcade-money-drive.png" width="420" alt="머니드라이브"> | <img src="docs/screenshots/arcade-bubble-dragon.png" width="420" alt="버블드래곤"> |
-| 나이트드라이브 |  |
-| <img src="docs/screenshots/night-driver.png" width="420" alt="나이트드라이브"> |  |
+| 나이트라이더 | 8차선방어선 |
+| <img src="docs/screenshots/night-driver.png" width="420" alt="나이트라이더"> | <img src="docs/screenshots/8th_defense_line.png" width="420" alt="8차선방어선">  |
