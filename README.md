@@ -139,9 +139,9 @@
 <sub>지하로 내려가 물건을 모아 팔고 강해져서 보스를 쓰러뜨리고 탈출하는 게임</sub>
 </td>
 <td width="50%" valign="top">
-<img src="docs/screenshots/19-nock.png" width="100%" alt="지하 수집가"><br>
+<img src="docs/screenshots/19-nock.png" width="100%" alt="노크"><br>
 <b>19 · 노크 (KNOCK)</b><br>
-<sub>새벽의 노크 소리, 현관 CCTV와 괴물의 추격 속에서 열쇠를 찾아 탈출하는 1인칭 3D 공포 게임</sub><br>
+<sub>새벽의 노크 소리, 현관 CCTV와 괴물의 추격 속에서 열쇠를 찾아 탈출하는 1인칭 3D 공포 게임</sub>
 </td>
 </tr>
 </table>
